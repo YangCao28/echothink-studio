@@ -130,6 +130,13 @@ Echothink layer auditable.
 The detailed Alpha patch convention is defined in
 `docs/echothink-browser-alpha/t01-define-echothink-patch-discipline.md`.
 
+The detailed Alpha repository skeleton plan is maintained in
+`docs/echothink-browser-alpha/t02-define-echothink-repo-structure.md`. It is the
+source of truth for the owner, purpose, expected contents, and creation trigger
+of `patches/echothink/`, `extensions/echothink-workspace/`, `assets/`, and
+`build/windows/`, for when `patches/series` entries may be added, and for how
+placeholder docs and generated build artifacts are treated.
+
 ## 5. Browser Feature Design
 
 ### 5.1 Branding And Defaults

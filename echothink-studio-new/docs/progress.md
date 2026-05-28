@@ -12,6 +12,7 @@ known limitations here.
 |---|---|---|---|---|---|
 | T00 | W0 | Baseline repo audit | None | DONE | Audit note created at `docs/echothink-browser-alpha/t00-baseline-repo-audit.md`. No repo behavior changed. Critical baseline gap: requested root `echothink-studio-new` contains only `docs/`; inherited Ungoogled Chromium patch/config files are present one directory up at `C:\Users\caoya\source\repos\echothink-studio`. Follow-on implementation tasks must resolve or explicitly accept the canonical root mismatch before patch/build work. |
 | T01 | W1 | Define Echothink patch discipline | T00 | DONE | Patch convention doc created at `docs/echothink-browser-alpha/t01-define-echothink-patch-discipline.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. No patch was produced; `patches/series` was not changed. |
+| T02 | W2 | Define Echothink repo structure | T01 | DONE | Repo skeleton plan created at `docs/echothink-browser-alpha/t02-define-echothink-repo-structure.md`. T01 is DONE; the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Defines owner/purpose/expected-contents/creation-trigger for `patches/echothink/`, `extensions/echothink-workspace/`, `assets/`, `build/windows/`, and the docs surface; specifies when `patches/series` entries may be added and how placeholders/generated artifacts are treated. No directory created, no patch produced, `patches/series` unchanged (108 inherited entries, 0 echothink). |
 | T03 | W1 | Validate inherited patch pipeline | T00 | DONE | Validation note created at `docs/echothink-browser-alpha/t03-validate-inherited-patch-pipeline.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for validating the inherited tree one directory up. `patches/series` has 108 entries, 0 missing files, 0 duplicates, and 0 Echothink entries. Existing Windows/tooling failures are documented as baseline issues. No Echothink patch work started. |
 | T04 | W1 | Define product branding inventory | T00 | DONE | Branding inventory created at `docs/echothink-browser-alpha/t04-define-product-branding-inventory.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. User-visible name is `Echothink Browser`; Windows Start Menu name is `Echothink Browser`; installer name stem is `EchothinkBrowserSetup`; About/first-run copy, icon asset requirements, and Chromium/Ungoogled Chromium attribution requirements are documented. No patch or asset work started. |
 | T06 | W2 | Add Echothink visual assets | T04 | DONE | Asset bundle created at the inherited canonical build root `assets/` (icons/, installer/, about/, tools/), with task note at `docs/echothink-browser-alpha/t06-add-echothink-visual-assets.md`. T04 is DONE; the canonical-root mismatch is carried forward — as the first artifact-producing task, assets live at the build root the packaging/branding patches consume, not under docs-only `echothink-studio-new`. Delivered original Echothink artwork: master SVG, PNG app icons (16/20/24/32/40/48/64/128/256), multi-resolution `echothink.ico` and `echothink-setup.ico`, and About/first-run logos (64/128/256). All required Windows Alpha sizes verified present. Installer banner/dialog bitmaps deferred to T30/T32. Wiring into Chromium/installer owned by T05/T30/T32. |
@@ -108,6 +109,61 @@ Known limitations:
   a task creates the first Echothink patch.
 - The requested repository root still contains only documentation; the inherited
   patch/config tree remains one directory up.
+
+## T02 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t02-define-echothink-repo-structure.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T02 depends on T01.
+- T01 is marked `DONE` (and records T00 as `DONE`).
+- The requested-root mismatch remains accepted as a baseline dependency for
+  this docs-only skeleton plan. Documentation lives under
+  `echothink-studio-new\docs`; the canonical browser repo (inherited patch tree)
+  is one directory up at `C:\Users\caoya\source\repos\echothink-studio`.
+
+Skeleton decisions:
+
+- Four Echothink-owned paths defined with owner, purpose, expected contents, and
+  creation trigger: `patches/echothink/` (T05+), `extensions/echothink-workspace/`
+  (T12), `assets/` with `icons/`, `installer/`, `about/` (T06), and
+  `build/windows/` (T32). Docs surface (`docs/`, `docs/echothink-browser-alpha/`)
+  documented as the planning/convention home.
+- `patches/series` entry timing restated from T01: an `echothink/NNNN-*.patch`
+  line may be added only when the patch file exists and is active; placeholder
+  entries forbidden; Echothink entries form a contiguous tail after the final
+  inherited entry `extra/ungoogled-chromium/add-flag-for-disabling-jit.patch`.
+- Placeholder/generated-artifact policy defined: no empty directories, no stub
+  patch/doc files, no committed build outputs (Chromium source, `out/`, archives,
+  installers); only canonical shipped assets are committed under `assets/`.
+- T02 created no directory, produced no patch, and did not modify
+  `patches/series`.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| Target-path existence check for `patches/echothink`, `extensions`, `extensions/echothink-workspace`, `assets`, `build`, `build/windows` | All MISSING — confirms the skeleton is a plan and T02 introduces no directories. |
+| `patches/` layer listing | `core/`, `extra/`, `upstream-fixes/` present; no `echothink/`. Inherited layers untouched. |
+| Non-blank `patches/series` entry count | `108` — unchanged from T00/T03 baseline. |
+| `grep -c echothink patches/series` | `0` — series remains inherited-only. |
+| `patches/series` tail check | Final inherited entry is `extra/ungoogled-chromium/add-flag-for-disabling-jit.patch`. |
+| Cross-reference check vs `t01-define-echothink-patch-discipline.md` and `echothink_browser_construction.md` section 4 | Path names, patch filenames, and ordering rules match. |
+
+Known limitations:
+
+- T02 did not create `patches/echothink/`, `extensions/echothink-workspace/`,
+  `assets/`, or `build/windows/`; downstream tasks materialize them with real
+  content.
+- The canonical-root mismatch is unresolved; the first task to physically create
+  these directories (T05/T06/T08/T12/T32) must resolve or explicitly accept it
+  and record the decision here.
+- Exact `manifest.json` fields, asset dimensions, and Windows channel/update
+  metadata remain owned by T12, T06/T04, and T30/T32.
 
 ## T03 Notes
 
