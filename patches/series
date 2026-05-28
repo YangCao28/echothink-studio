@@ -109,4 +109,6 @@ extra/ungoogled-chromium/disable-fedcm-by-default.patch
 extra/ungoogled-chromium/bundle-hyphenation-patterns.patch
 extra/ungoogled-chromium/add-flag-for-disabling-jit.patch
 
+# Echothink Browser patches (applied after all inherited Chromium/Ungoogled patches)
 echothink/0001-branding.patch
+echothink/0002-default-policies-and-preferences.patch
