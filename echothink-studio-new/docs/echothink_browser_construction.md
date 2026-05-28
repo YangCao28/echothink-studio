@@ -97,8 +97,11 @@ echothink-browser/
       manifest.json
       background.js
       sidepanel.html
+      sidepanel.css
       sidepanel.js
+      content_bridge.js
       assets/
+        workspace-mark.svg
 
   assets/
     icons/

@@ -21,6 +21,7 @@ known limitations here.
 | T09 | W1 | Confirm New Tab insertion point | T00 | DONE | Hook decision created at `docs/echothink-browser-alpha/t09-confirm-new-tab-insertion-point.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Selected hook: `HandleNewTabPageLocationOverride()` via the normal-profile New Tab override preference. Avoid a global `--custom-ntp` default for Alpha because the inherited switch can affect incognito external New Tabs. No patch work started. |
 | T08 | W2 | Implement default policies/preferences patch | T01, T07 | DONE | First Echothink defaults patch created: `patches/echothink/0002-default-policies-and-preferences.patch`, appended to `patches/series` after inherited patches. Seeds normal-profile New Tab route (inherited custom-ntp hook empty-branch) and homepage/startup/default-bookmarks via Chromium initial preferences (new files `chrome/browser/resources/echothink/initial_preferences.json` and `echothink_bookmarks.html`). Default search provider and suggest URL were split to T19's `patches/echothink/0005-default-search-provider.patch`. All defaults are override-safe; no locked policy; native bookmark/history/download/password/cookie/DevTools behavior untouched. Validated: `validate_config.py`, `check_patch_files.py`, `check_gn_flags.py` exit 0 clean; `git apply --numstat` parses cleanly; series has 0 missing files. Patch application against Chromium source deferred to build pipeline (no local checkout, per T03). Task note: `docs/echothink-browser-alpha/t08-implement-default-policies-preferences-patch.md`. |
 | T19 | W2 | Implement default search provider | T08 | DONE | Created `patches/echothink/0005-default-search-provider.patch` and appended it to the Echothink tail block after `echothink/0002-default-policies-and-preferences.patch`. The patch re-points the inherited "No Search" prepopulated engine slot to Echothink Search and adds `default_search_provider` values to the T08 initial-preferences file: search URL `https://search.echothink.ai/search?q={searchTerms}` and suggest URL `https://search.echothink.ai/suggest?q={searchTerms}`. Search suggestions remain disabled by default over the inherited baseline and use the Echothink suggest route only when enabled. No omnibox internals, direct URL navigation, network stack, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. Task note: `docs/echothink-browser-alpha/t19-implement-default-search-provider.md`. |
+| T12 | W3 | Scaffold bundled Manifest V3 workspace extension | T02 | DONE | Created source-only extension scaffold at `extensions/echothink-workspace/` in the canonical browser root: MV3 `manifest.json`, background service worker, Side Panel HTML/CSS/JS, narrow content bridge, and extension-local asset. T02 is DONE; the canonical-root mismatch is carried forward and recorded in the task note. Manifest declares only `sidePanel`, `storage`, `tabs`, `activeTab`, and `scripting`; host permissions are limited to `app.echothink.ai`, `auth.echothink.ai`, `api.echothink.ai`, and `search.echothink.ai`. No backend/business logic, Chromium native patch, or `patches/series` change was made. Bundling is deferred to T13. Task note: `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`. |
 
 ## T00 Notes
 
@@ -695,3 +696,73 @@ Known limitations:
   build with a clean profile.
 - Backend availability of `search.echothink.ai` was not validated; the URLs are
   browser route contracts only.
+
+## T12 Notes
+
+Changed files:
+
+- `extensions/echothink-workspace/manifest.json` (new MV3 manifest)
+- `extensions/echothink-workspace/background.js` (new service worker)
+- `extensions/echothink-workspace/sidepanel.html` (new Side Panel shell)
+- `extensions/echothink-workspace/sidepanel.css` (new Side Panel styling)
+- `extensions/echothink-workspace/sidepanel.js` (new local shell behavior)
+- `extensions/echothink-workspace/content_bridge.js` (new narrow content bridge)
+- `extensions/echothink-workspace/assets/workspace-mark.svg` (new local asset)
+- `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`
+  (new task note)
+- `docs/echothink_browser_construction.md` (updated extension tree)
+- `docs/progress.md` (this file)
+
+Prerequisite status:
+
+- T12 depends on T02; T02 is marked `DONE`.
+- The canonical-root mismatch is carried forward as an accepted baseline
+  dependency. The extension source lives at the inherited browser root
+  (`extensions/echothink-workspace/`) beside `patches/` and `assets/`; planning
+  documentation remains under `echothink-studio-new/docs`.
+
+Implementation decisions:
+
+- Created a source-only Manifest V3 extension skeleton. It is not yet bundled
+  into Chromium; that is T13 and the future
+  `patches/echothink/0004-bundled-workspace-extension.patch`.
+- Local loading assumption for development is Chromium's unpacked-extension flow
+  against `extensions/echothink-workspace/`. There is no npm, bundler,
+  generated asset, or build step in this scaffold.
+- Manifest declares only the T12 required permissions:
+  `sidePanel`, `storage`, `tabs`, `activeTab`, and `scripting`.
+- Manifest host permissions are limited to Echothink-owned domains:
+  `https://app.echothink.ai/*`, `https://auth.echothink.ai/*`,
+  `https://api.echothink.ai/*`, and `https://search.echothink.ai/*`.
+- The content bridge injects only on `app.echothink.ai` and
+  `auth.echothink.ai`, responds only to same-window bridge pings from allowed
+  origins, and exposes no privileged capabilities.
+- The Side Panel shell has Chat and Workspace regions with local-only state.
+  Persisted mode selection remains T15; service-backed chat/context behavior
+  remains T16/T17/T18/T27 or later tasks.
+- No Chromium native patch, `patches/series` change, backend service call,
+  search ranking, chat orchestration, workflow orchestration, or business page
+  implementation was added.
+- Network stack, TLS validation, sandbox, renderer internals, downloads,
+  history, bookmarks, password manager, cookies, and DevTools were untouched.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `python3 -m json.tool extensions/echothink-workspace/manifest.json` | Passed: manifest JSON parses. |
+| Manifest shape check for MV3, service worker, side panel path, permissions, host permissions, and content script matches | Passed: expected values matched exactly. |
+| `node --check extensions/echothink-workspace/background.js` | Passed. |
+| `node --check extensions/echothink-workspace/content_bridge.js` | Passed. |
+| `node --check extensions/echothink-workspace/sidepanel.js` | Passed. |
+| Source path check for the seven required scaffold files | Passed: all files exist under `extensions/echothink-workspace/`. |
+| `git diff --check` | Passed: no whitespace errors. |
+
+Known limitations:
+
+- The extension was not loaded in a live Chromium profile in this environment.
+  T12 validates source shape and local syntax only.
+- Bundling and default installation remain T13.
+- Persisted Side Panel mode state remains T15.
+- Chat UI behavior, outbound scope metadata, service states, request proof
+  integration, and Workspace Context rendering remain later tasks.
