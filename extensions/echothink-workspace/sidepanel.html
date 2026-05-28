@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Echothink Workspace</title>
+    <link rel="stylesheet" href="sidepanel.css">
+  </head>
+  <body>
+    <main class="workspace-shell">
+      <header class="workspace-header">
+        <img class="workspace-mark" src="assets/workspace-mark.svg" alt="">
+        <div>
+          <h1>Echothink Workspace</h1>
+          <p id="active-tab-label">Current page</p>
+        </div>
+      </header>
+
+      <nav class="mode-tabs" aria-label="Workspace mode">
+        <button class="mode-tab is-active" type="button" data-mode="chat" aria-selected="true">
+          Chat
+        </button>
+        <button class="mode-tab" type="button" data-mode="workspace" aria-selected="false">
+          Workspace
+        </button>
+      </nav>
+
+      <section class="panel-region" id="chat-panel" data-panel="chat">
+        <label class="field-label" for="scope-select">Scope</label>
+        <select id="scope-select" name="scope">
+          <option value="current_page">Current page</option>
+          <option value="project">Current project</option>
+          <option value="app_domain">Current App Domain</option>
+          <option value="task_wave">Current Task Wave</option>
+          <option value="artifacts">Recent artifacts</option>
+          <option value="organization">Organization workspace</option>
+        </select>
+
+        <div class="empty-state" role="status">
+          <strong>Signed out</strong>
+          <span>Open Echothink to continue.</span>
+        </div>
+
+        <form class="composer">
+          <label class="field-label" for="message-input">Message</label>
+          <textarea id="message-input" name="message" rows="4" placeholder="Message Echothink" disabled></textarea>
+          <button type="submit" disabled>Send</button>
+        </form>
+      </section>
+
+      <section class="panel-region is-hidden" id="workspace-panel" data-panel="workspace">
+        <ul class="context-list">
+          <li>
+            <span>Project</span>
+            <strong>Unavailable</strong>
+          </li>
+          <li>
+            <span>Task Wave</span>
+            <strong>Unavailable</strong>
+          </li>
+          <li>
+            <span>Approvals</span>
+            <strong>Unavailable</strong>
+          </li>
+          <li>
+            <span>Artifacts</span>
+            <strong>Unavailable</strong>
+          </li>
+        </ul>
+      </section>
+
+      <footer class="workspace-footer">
+        <a href="https://app.echothink.ai/sidepanel" target="_blank" rel="noreferrer">
+          Open Echothink
+        </a>
+      </footer>
+    </main>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>
