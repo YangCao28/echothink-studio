@@ -1,0 +1,119 @@
+# Browser-Only Task DAG: Ungoogled Chromium To Echothink Browser
+
+## Summary
+
+This DAG converts the current Ungoogled Chromium patch/config repo into a Windows-first Echothink Browser Alpha. It includes only browser-side work: patch structure, branding, defaults, New Tab, bundled extension, Side Panel modes, login gate, device identity, request proof helper, optional `echo://`, Windows packaging, and validation.
+
+Backend services are out of scope; browser tasks may define request shapes and route contracts only where needed for the browser implementation.
+
+## Public Browser Interfaces
+
+- Patch namespace: `patches/echothink/`, appended after inherited patches in `patches/series`.
+- Extension package: `extensions/echothink-workspace/`.
+- Side Panel modes: `chat` and `workspace_context`, persisted per profile.
+- Chat scope metadata: `current_page`, `project`, `app_domain`, `task_wave`, `artifacts`, `organization`.
+- Local device metadata: `device_id`, `installation_id`, `browser_channel`, `browser_version`, `enrollment_status`, `last_verified_at`.
+- Extension bridge APIs: `getDeviceStatus`, `requestEnrollmentChallenge`, `signProofPayload`, `clearEnrollment`.
+- Default routes: New Tab `https://app.echothink.ai/newtab`, search `https://search.echothink.ai/search?q={searchTerms}`, suggest `https://search.echothink.ai/suggest?q={searchTerms}`.
+
+## Task DAG
+
+| ID | Task | Prerequisites | Delivery Target |
+|---|---|---|---|
+| T00 | Baseline repo audit: confirm current Chromium pin, patch pipeline, existing New Tab/search hooks, Windows build assumptions | None | M0: baseline audit note |
+| T01 | Define Echothink patch discipline: naming, ordering, patch headers, review rules | T00 | M0: patch convention doc |
+| T02 | Add planned repo structure for Echothink browser layer: patch namespace, extension path, assets path, Windows build path | T01 | M0: repo skeleton plan |
+| T03 | Validate inherited patch pipeline remains unchanged | T00 | M0: existing validation passes |
+| T04 | Define product branding inventory: product strings, icons, About/first-run copy, installer names | T00 | M1: branding inventory |
+| T05 | Implement branding patch for product-visible identity | T01, T04 | M1: `0001-branding.patch` |
+| T06 | Add Echothink assets: icons, installer assets, About/first-run assets | T04 | M1: asset bundle |
+| T07 | Define default policy/preference set: homepage, New Tab, search, bookmarks, enterprise-safe defaults | T00 | M1: defaults spec |
+| T08 | Implement default policies/preferences patch | T01, T07 | M1: `0002-default-policies-and-preferences.patch` |
+| T09 | Confirm New Tab insertion point using existing custom NTP pattern | T00 | M2: New Tab hook decision |
+| T10 | Implement New Tab route and local unauthenticated/offline fallback | T08, T09 | M2: `0003-new-tab-and-first-run.patch` |
+| T11 | Add first-run shell that leads to login/enrollment before general browsing | T10 | M2: first-run gate shell |
+| T12 | Scaffold bundled Manifest V3 workspace extension | T02 | M3: extension skeleton |
+| T13 | Add extension packaging/install patch so browser bundles trusted extension by default | T12 | M3: `0004-bundled-workspace-extension.patch` |
+| T14 | Implement Side Panel container and toolbar/entry behavior | T13 | M3: Side Panel opens |
+| T15 | Implement Side Panel mode selector with persisted `chat` / `workspace_context` state | T14 | M3: switchable panel modes |
+| T16 | Implement Chat Panel UI shell and scope selector | T15 | M3: chat mode with scope metadata |
+| T17 | Implement Workspace Context UI shell | T15 | M3: context mode shell |
+| T18 | Add local Side Panel states: signed out, no device, unauthorized, offline, service error | T16, T17 | M3: resilient Side Panel UX |
+| T19 | Implement default search provider configuration | T08 | M1/M3: `0005-default-search-provider.patch` |
+| T20 | Define login gate local state and unauthenticated allowlist | T10, T11 | M4: login gate spec |
+| T21 | Implement login-required startup and blocked-navigation explanation page | T20 | M4: `0006-login-gate.patch` |
+| T22 | Define device identity model and Windows DPAPI storage approach | T00, T20 | M5: device identity design |
+| T23 | Implement device key generation and DPAPI private-key storage | T22 | M5: `0007-device-identity.patch` |
+| T24 | Implement narrow extension bridge for device status, enrollment reset, and signing requests | T13, T23 | M5: device bridge API |
+| T25 | Define request proof canonical payload and Echothink-domain signing allowlist | T24 | M5: proof helper spec |
+| T26 | Implement browser-side proof signing helper | T25 | M5: `0008-request-proof-helper.patch` |
+| T27 | Integrate proof helper into extension API calls without exposing private key | T16, T24, T26 | M5: proof-capable extension |
+| T28 | Implement optional `echo://` route resolver to HTTPS Echothink routes | T10 | M6: `0009-echo-protocol-router.patch` |
+| T29 | Add invalid `echo://` route fallback page | T28 | M6: safe route failure |
+| T30 | Define Windows application identity, installer naming, and release channels | T05, T06 | M7: Windows packaging spec |
+| T31 | Implement Windows packaging identity patch | T30 | M7: `0010-windows-packaging-identity.patch` |
+| T32 | Add Windows build, signing, update-channel, and smoke-test documentation | T30, T31 | M7: Windows Alpha release docs |
+| T33 | Run patch validation across inherited plus Echothink patches | T05, T08, T10, T13, T19, T21, T23, T26, T31 | M7: patch validation report |
+| T34 | Run native browser regression suite: tabs, windows, popups, history, downloads, bookmarks, passwords, cookies, TLS, DevTools, extensions | T33 | M7: regression report |
+| T35 | Run Echothink behavior tests: branding, New Tab, search, Side Panel modes, chat scope, login gate, device persistence, proof helper | T33 | M7: behavior test report |
+| T36 | Run Windows packaging smoke test: install, launch, Start Menu identity, New Tab, Side Panel, search, restart persistence, uninstall | T31, T32, T35 | M7: Windows smoke report |
+| T37 | Produce Windows Echothink Browser Alpha candidate | T33, T34, T35, T36 | Alpha: signed/tested candidate |
+
+## Dependency Shape
+
+```mermaid
+flowchart TD
+  T00 --> T01 --> T02
+  T00 --> T03
+  T00 --> T04 --> T05
+  T04 --> T06
+  T00 --> T07 --> T08
+  T00 --> T09 --> T10 --> T11
+  T08 --> T10
+  T02 --> T12 --> T13 --> T14 --> T15
+  T15 --> T16 --> T18
+  T15 --> T17 --> T18
+  T08 --> T19
+  T10 --> T20 --> T21
+  T11 --> T20
+  T00 --> T22 --> T23 --> T24 --> T25 --> T26 --> T27
+  T13 --> T24
+  T16 --> T27
+  T10 --> T28 --> T29
+  T05 --> T30
+  T06 --> T30 --> T31 --> T32
+  T05 --> T33
+  T08 --> T33
+  T10 --> T33
+  T13 --> T33
+  T19 --> T33
+  T21 --> T33
+  T23 --> T33
+  T26 --> T33
+  T31 --> T33
+  T33 --> T34
+  T33 --> T35
+  T31 --> T36
+  T32 --> T36
+  T35 --> T36
+  T34 --> T37
+  T35 --> T37
+  T36 --> T37
+```
+
+## Test Plan
+
+- Patch validation: every Echothink patch applies after inherited patches; `patches/series` ordering is deterministic.
+- Native browser regression: Chromium primitives remain native and unchanged in behavior.
+- Workspace shell tests: New Tab, default search, bundled extension, Side Panel mode switching, persisted mode, chat scope metadata.
+- Login/device tests: first-run gate, unauthenticated allowlist, blocked-navigation page, DPAPI persistence, bridge cannot expose private key.
+- Proof helper tests: signs only Echothink-domain canonical payloads; refuses third-party signing.
+- Windows smoke tests: install, launch, branding, New Tab, Side Panel, search, restart persistence, uninstall.
+
+## Assumptions
+
+- Alpha may keep Chromium internal executable naming if needed to reduce patch risk; public Beta should complete visible Echothink application identity.
+- Side Panel is delivered first through a bundled Manifest V3 extension, not native Chromium UI.
+- DPAPI is the Alpha secure-storage target; TPM-backed storage is deferred.
+- `echo://` is optional and never a security boundary.
+- Backend implementation is not part of this DAG.
