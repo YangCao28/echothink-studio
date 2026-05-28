@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Echothink Browser application icon — master source.
+  Original artwork. Created for the Echothink Browser project (T06).
+  Concept: a focal "think" dot emitting "echo" ripples.
+  Do not substitute Chromium, Google Chrome, or Ungoogled Chromium logos here.
+  Brand mark; all generated raster icons derive from this design.
+  Authoring space: 256 x 256. Coordinates below match assets/tools/generate_icons.py.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="echoTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#15C2D6"/>
+      <stop offset="1" stop-color="#0A4F8A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App tile -->
+  <rect x="0" y="0" width="256" height="256" rx="56" ry="56" fill="url(#echoTile)"/>
+
+  <!-- Echo mark: focal dot + two outward ripples, opening to the right -->
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+    <!-- focal "think" dot -->
+    <circle cx="96" cy="128" r="16" fill="#FFFFFF" stroke="none"/>
+    <!-- ripple 1 -->
+    <path d="M 121.2 91.9 A 44 44 0 0 1 121.2 164.1" stroke-width="16"/>
+    <!-- ripple 2 (softer) -->
+    <path d="M 144.8 69.8 A 76 76 0 0 1 144.8 186.2" stroke-width="16" stroke-opacity="0.85"/>
+  </g>
+</svg>

@@ -14,6 +14,7 @@ known limitations here.
 | T01 | W1 | Define Echothink patch discipline | T00 | DONE | Patch convention doc created at `docs/echothink-browser-alpha/t01-define-echothink-patch-discipline.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. No patch was produced; `patches/series` was not changed. |
 | T03 | W1 | Validate inherited patch pipeline | T00 | DONE | Validation note created at `docs/echothink-browser-alpha/t03-validate-inherited-patch-pipeline.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for validating the inherited tree one directory up. `patches/series` has 108 entries, 0 missing files, 0 duplicates, and 0 Echothink entries. Existing Windows/tooling failures are documented as baseline issues. No Echothink patch work started. |
 | T04 | W1 | Define product branding inventory | T00 | DONE | Branding inventory created at `docs/echothink-browser-alpha/t04-define-product-branding-inventory.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. User-visible name is `Echothink Browser`; Windows Start Menu name is `Echothink Browser`; installer name stem is `EchothinkBrowserSetup`; About/first-run copy, icon asset requirements, and Chromium/Ungoogled Chromium attribution requirements are documented. No patch or asset work started. |
+| T06 | W2 | Add Echothink visual assets | T04 | DONE | Asset bundle created at the inherited canonical build root `assets/` (icons/, installer/, about/, tools/), with task note at `docs/echothink-browser-alpha/t06-add-echothink-visual-assets.md`. T04 is DONE; the canonical-root mismatch is carried forward — as the first artifact-producing task, assets live at the build root the packaging/branding patches consume, not under docs-only `echothink-studio-new`. Delivered original Echothink artwork: master SVG, PNG app icons (16/20/24/32/40/48/64/128/256), multi-resolution `echothink.ico` and `echothink-setup.ico`, and About/first-run logos (64/128/256). All required Windows Alpha sizes verified present. Installer banner/dialog bitmaps deferred to T30/T32. Wiring into Chromium/installer owned by T05/T30/T32. |
 | T07 | W1 | Define default policy/preference set | T00 | DONE | Defaults spec created at `docs/echothink-browser-alpha/t07-define-default-policy-preference-set.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Homepage, New Tab, search URL, suggest URL, default bookmarks, preferred policy/preference surfaces, and enterprise-safe defaults are documented. No patch or backend work started. |
 | T09 | W1 | Confirm New Tab insertion point | T00 | DONE | Hook decision created at `docs/echothink-browser-alpha/t09-confirm-new-tab-insertion-point.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Selected hook: `HandleNewTabPageLocationOverride()` via the normal-profile New Tab override preference. Avoid a global `--custom-ntp` default for Alpha because the inherited switch can affect incognito external New Tabs. No patch work started. |
 
@@ -223,6 +224,66 @@ Known limitations:
   not include a Chromium source checkout.
 - Exact installer bitmap dimensions and channel-specific names remain T30/T32
   packaging decisions.
+
+## T06 Notes
+
+Changed / added files:
+
+- `assets/README.md`
+- `assets/icons/echothink.svg`
+- `assets/icons/echothink.ico`
+- `assets/icons/png/echothink-{16,20,24,32,40,48,64,128,256}.png` (9 files)
+- `assets/installer/echothink-setup.ico`
+- `assets/installer/README.md`
+- `assets/about/echothink-logo-{64,128,256}.png` (3 files)
+- `assets/tools/generate_icons.py`
+- `docs/echothink-browser-alpha/t06-add-echothink-visual-assets.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T06 depends on T04. T04 is marked `DONE`.
+- The canonical-root mismatch (T00) is carried forward. T06 is the first
+  artifact-producing task, so the `assets/` bundle is placed at the inherited
+  canonical build root (beside `patches/`, `utils/`, `devutils/`) — where the
+  packaging/branding patches consume it — rather than under the docs-only
+  `echothink-studio-new` root. Task documentation stays under
+  `echothink-studio-new\docs`.
+
+Asset decisions:
+
+- Original Echothink artwork: a focal "think" dot emitting two "echo" ripples
+  in white on a rounded teal->deep-blue tile (`#15C2D6` -> `#0A4F8A`).
+- Master source: `assets/icons/echothink.svg`. All rasters are reproduced from
+  the matching geometry via `assets/tools/generate_icons.py` (Pillow), because
+  the environment's `cairosvg` lacks a working cairo native library.
+- No Chromium / Google Chrome / Ungoogled Chromium logo artwork is reused, per
+  T04 attribution rules. Source/ownership recorded in `assets/README.md`.
+- Required Windows Alpha sizes are present: PNG 16/20/24/32/40/48/64/128/256,
+  multi-resolution app `.ico` and installer `.ico` (same 9 sizes), and
+  About/first-run logos 64/128/256.
+- Installer banner/dialog bitmaps are deferred to T30/T32 (dimensions depend on
+  the installer technology); documented in `assets/installer/README.md`.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `python3 assets/tools/generate_icons.py` | Passed: wrote 9 PNG app icons, `echothink.ico`, `echothink-setup.ico`, and 3 About logos. |
+| Pillow size/mode check on `icons/png/*.png` and `about/*.png` | Passed: exact target sizes, RGBA. |
+| Pillow `.ico` resolution check on both `.ico` files | Passed: each contains 16, 20, 24, 32, 40, 48, 64, 128, 256. |
+| Visual inspection of 256 px and 32 px exports | Passed: mark legible at large and small sizes. |
+| `find assets -type f` | Passed: 17 files present under the planned structure. |
+
+Known limitations:
+
+- Rasters are downsampled from one master rather than hand-tuned per size;
+  production may want pixel hinting for the 16 px icon. Acceptable for Alpha.
+- Installer banner/dialog bitmaps deferred to T30/T32.
+- Wiring assets into Chromium resources and the installer is owned by T05 and
+  T30/T32; T06 only adds and documents the bundle.
+- No pinned Chromium source checkout was available locally; exact native icon
+  resource replacement paths are verified by T05/T30.
 
 ## T07 Notes
 
