@@ -20,6 +20,7 @@ known limitations here.
 | T07 | W1 | Define default policy/preference set | T00 | DONE | Defaults spec created at `docs/echothink-browser-alpha/t07-define-default-policy-preference-set.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Homepage, New Tab, search URL, suggest URL, default bookmarks, preferred policy/preference surfaces, and enterprise-safe defaults are documented. No patch or backend work started. |
 | T09 | W1 | Confirm New Tab insertion point | T00 | DONE | Hook decision created at `docs/echothink-browser-alpha/t09-confirm-new-tab-insertion-point.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Selected hook: `HandleNewTabPageLocationOverride()` via the normal-profile New Tab override preference. Avoid a global `--custom-ntp` default for Alpha because the inherited switch can affect incognito external New Tabs. No patch work started. |
 | T08 | W2 | Implement default policies/preferences patch | T01, T07 | DONE | First Echothink defaults patch created: `patches/echothink/0002-default-policies-and-preferences.patch`, appended to `patches/series` after inherited patches. Seeds normal-profile New Tab route (inherited custom-ntp hook empty-branch) and homepage/startup/default-bookmarks via Chromium initial preferences (new files `chrome/browser/resources/echothink/initial_preferences.json` and `echothink_bookmarks.html`). Default search provider and suggest URL were split to T19's `patches/echothink/0005-default-search-provider.patch`. All defaults are override-safe; no locked policy; native bookmark/history/download/password/cookie/DevTools behavior untouched. Validated: `validate_config.py`, `check_patch_files.py`, `check_gn_flags.py` exit 0 clean; `git apply --numstat` parses cleanly; series has 0 missing files. Patch application against Chromium source deferred to build pipeline (no local checkout, per T03). Task note: `docs/echothink-browser-alpha/t08-implement-default-policies-preferences-patch.md`. |
+| T10 | W3 | Implement New Tab route and fallback | T08, T09 | DONE | Created `patches/echothink/0003-new-tab-and-first-run.patch` and inserted it into `patches/series` between `echothink/0002` and `echothink/0005`. The authenticated New Tab route to `https://app.echothink.ai/newtab` already comes from T08's `0002` (inherited `HandleNewTabPageLocationOverride()` hook) and is NOT re-edited, so the patches never collide. T10 adds the local fallback/first-run page `chrome://echothink-first-run` (new file `chrome/browser/ui/webui/echothink_first_run.h`, reusing the inherited `first-run-page.patch` URLDataSource pattern), registers it in `chrome_web_ui_configs.cc`, adds the `echothink-first-run` host in `webui_url_constants.cc`, and opens it as the first first-run tab in `chrome_browser_main.cc` (additive, before the inherited ungoogled-first-run tab). The page is static, script-free, renders fully offline, and links ONLY to login, device enrollment, diagnostics (`chrome://echothink-diagnostics`), update, and support/download — no workspace/business data. No network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools changes; incognito New Tab behavior untouched. Validated: `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` exit 0; `git apply --numstat` parses cleanly (4 files). Real `patch -p1` application and runtime smoke deferred to build pipeline (no local Chromium checkout, per T03). Task note: `docs/echothink-browser-alpha/t10-implement-new-tab-route-and-fallback.md`. |
 | T19 | W2 | Implement default search provider | T08 | DONE | Created `patches/echothink/0005-default-search-provider.patch` and appended it to the Echothink tail block after `echothink/0002-default-policies-and-preferences.patch`. The patch re-points the inherited "No Search" prepopulated engine slot to Echothink Search and adds `default_search_provider` values to the T08 initial-preferences file: search URL `https://search.echothink.ai/search?q={searchTerms}` and suggest URL `https://search.echothink.ai/suggest?q={searchTerms}`. Search suggestions remain disabled by default over the inherited baseline and use the Echothink suggest route only when enabled. No omnibox internals, direct URL navigation, network stack, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. Task note: `docs/echothink-browser-alpha/t19-implement-default-search-provider.md`. |
 
 ## T00 Notes
@@ -614,6 +615,65 @@ Known limitations:
   parser issue documented in T03; remote patch application was not run.
 - Backend availability of the Echothink app/update routes is not validated; they
   are browser route contracts only.
+
+## T10 Notes
+
+Changed files:
+
+- `patches/echothink/0003-new-tab-and-first-run.patch` (new)
+- `patches/series` (inserted `echothink/0003-new-tab-and-first-run.patch`
+  between `echothink/0002` and `echothink/0005`)
+- `docs/echothink-browser-alpha/t10-implement-new-tab-route-and-fallback.md` (new)
+- `docs/progress.md`
+
+Native files the patch touches:
+
+- `chrome/browser/ui/webui/echothink_first_run.h` (new local fallback WebUI)
+- `chrome/browser/ui/webui/chrome_web_ui_configs.cc` (register the WebUI)
+- `chrome/common/webui_url_constants.cc` (add `echothink-first-run` host)
+- `chrome/browser/chrome_browser_main.cc` (open page as first first-run tab)
+
+Design decisions:
+
+- The authenticated New Tab route (`https://app.echothink.ai/newtab`) is owned by
+  T08's `0002` patch via the inherited `HandleNewTabPageLocationOverride()` hook.
+  T10 does NOT re-edit that hook, so `0002` and `0003` never touch the same lines.
+  T10 adds the local fallback the route degrades to when the workspace is offline,
+  signed-out, or pre-enrollment.
+- The fallback page reuses the inherited `first-run-page.patch` in-memory
+  `URLDataSource` pattern. It is static, script-free (WebUI default CSP kept),
+  renders fully offline, and links ONLY to login, device enrollment, diagnostics,
+  update, and support/download. No workspace data or protected business data is
+  embedded.
+- First-run wiring is additive: the Echothink page is added before the inherited
+  `chrome://ungoogled-first-run` tab so inherited behavior is preserved.
+
+Validation commands and results (run from inherited repo root):
+
+| Command | Result |
+|---|---|
+| `python3 devutils/check_patch_files.py` | Passed (exit 0): patch parses, referenced in series, no duplicates, no unused. |
+| `git apply --numstat patches/echothink/0003-new-tab-and-first-run.patch` | Passed (exit 0): `121 0` echothink_first_run.h, `2 0` chrome_web_ui_configs.cc, `1 0` webui_url_constants.cc, `1 0` chrome_browser_main.cc. |
+| `python3 devutils/check_gn_flags.py` | Passed (exit 0). |
+| `python3 devutils/validate_config.py` | Passed (exit 0; clean on POSIX). |
+
+Known limitations:
+
+- No local Chromium checkout (per T03/T08), so real `patch -p1` application and a
+  runtime browser smoke test were not run. Application is deferred to the build
+  pipeline; the documented application command is in the patch header.
+- `@@` hunk offsets for the three edited native files are anchored on the lines
+  the inherited `first-run-page.patch` introduces; exact post-inherited offsets
+  must be confirmed at apply time against pinned Chromium `148.0.7778.178`.
+  `patch -p1` fuzzy matching should absorb small offset drift.
+- `chrome://echothink-diagnostics` is referenced as the diagnostics link target
+  per the allowed-destination list, but the diagnostics WebUI itself is owned by a
+  later task (change plan 5.8); until then the diagnostics link is a known dead
+  `chrome://` link.
+- The redirect logic that decides *when* a failed/unauthenticated remote `/newtab`
+  load lands on `chrome://echothink-first-run` is a backend/gateway and enrollment
+  concern owned by T11/T20; T10 only provides the local destination and the
+  first-run entry point.
 
 ## T19 Notes
 
