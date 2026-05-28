@@ -1,0 +1,58 @@
+# Echothink-Patch: 0001-branding
+# Title: Set user-visible product identity to Echothink Browser
+# Area: branding
+# Depends-On: none
+# Browser-Layer-Reason: The product name is compiled into the browser binary's localized string resources and the local first-run WebUI; it cannot be supplied by an Echothink backend service. This is browser-shell identity, not business logic.
+# Preferred-Surface-Checked: native-required (IDS_PRODUCT_NAME / IDS_SHORT_PRODUCT_NAME are GRIT string resources with no policy/preference/extension override; the first-run identity strings live in the inherited local WebUI source)
+# Security-Critical-Areas: none
+# Native-Files-Touched: chrome/app/chromium_strings.grd, chrome/browser/ui/webui/ungoogled_first_run.h
+# Rebase-Risk: low (chromium_strings.grd IDS_PRODUCT_NAME block is long-term stable); medium for ungoogled_first_run.h because it depends on the inherited patches/extra/ungoogled-chromium/first-run-page.patch having already created the file
+# Validation: Apply inherited patches, then this patch with `patch -p1`; build and confirm About/chrome://version and chrome://ungoogled-first-run show "Echothink Browser" while Chromium/Ungoogled Chromium credits and license links remain.
+#
+# Scope notes:
+# - Updates only the smallest stable user-visible product-identity insertion
+#   points. IDS_PRODUCT_NAME and IDS_SHORT_PRODUCT_NAME propagate the product
+#   name across menus, the About settings surface, and chrome://version.
+# - Updates the inherited first-run page title and heading to the Echothink
+#   identity while deliberately preserving the upstream attribution sentence
+#   ("built with ungoogled-chromium patches ... default Chromium experience")
+#   and all upstream links. Credits and license generation (add-credits.patch,
+#   licenses.py output, root LICENSE) are untouched.
+# - Deliberately does NOT touch chrome/app/theme/chromium/BRANDING or other
+#   low-level executable/installer identifiers. Windows packaging identity and
+#   executable naming are deferred to T30/T31 per the branding inventory.
+
+--- a/chrome/app/chromium_strings.grd
++++ b/chrome/app/chromium_strings.grd
+@@ -294,9 +294,9 @@
+         </then>
+         <else>
+           <message name="IDS_PRODUCT_NAME" desc="The Chrome application name" translateable="false">
+-            Chromium
++            Echothink Browser
+           </message>
+           <message name="IDS_SHORT_PRODUCT_NAME" desc="The Chrome application short name." translateable="false">
+-            Chromium
++            Echothink Browser
+           </message>
+         </else>
+--- a/chrome/browser/ui/webui/ungoogled_first_run.h
++++ b/chrome/browser/ui/webui/ungoogled_first_run.h
+@@ -25,7 +25,7 @@
+                         const content::WebContents::Getter& wc_getter,
+                         GotDataCallback callback) {
+     std::string source = R"(
+-<title>ungoogled-chromium first run page</title>
++<title>Echothink Browser first run page</title>
+ <meta name="color-scheme" content="light dark">
+ <style>
+  @import url(chrome://resources/css/text_defaults_md.css);
+@@ -47,7 +47,7 @@
+ </style>
+ <base target="_blank">
+ <section>
+- <h2>ungoogled-chromium</h2><p>
++ <h2>Echothink Browser</h2><p>
+  This browser was built with ungoogled-chromium patches and differs from the default Chromium experience
+  in a few ways. Look over the sections below and the
+  <a href="https://github.com/ungoogled-software/ungoogled-chromium/blob/master/docs/default_settings.md">
