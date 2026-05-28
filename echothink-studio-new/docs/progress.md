@@ -21,6 +21,7 @@ known limitations here.
 | T09 | W1 | Confirm New Tab insertion point | T00 | DONE | Hook decision created at `docs/echothink-browser-alpha/t09-confirm-new-tab-insertion-point.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Selected hook: `HandleNewTabPageLocationOverride()` via the normal-profile New Tab override preference. Avoid a global `--custom-ntp` default for Alpha because the inherited switch can affect incognito external New Tabs. No patch work started. |
 | T08 | W2 | Implement default policies/preferences patch | T01, T07 | DONE | First Echothink defaults patch created: `patches/echothink/0002-default-policies-and-preferences.patch`, appended to `patches/series` after inherited patches. Seeds normal-profile New Tab route (inherited custom-ntp hook empty-branch) and homepage/startup/default-bookmarks via Chromium initial preferences (new files `chrome/browser/resources/echothink/initial_preferences.json` and `echothink_bookmarks.html`). Default search provider and suggest URL were split to T19's `patches/echothink/0005-default-search-provider.patch`. All defaults are override-safe; no locked policy; native bookmark/history/download/password/cookie/DevTools behavior untouched. Validated: `validate_config.py`, `check_patch_files.py`, `check_gn_flags.py` exit 0 clean; `git apply --numstat` parses cleanly; series has 0 missing files. Patch application against Chromium source deferred to build pipeline (no local checkout, per T03). Task note: `docs/echothink-browser-alpha/t08-implement-default-policies-preferences-patch.md`. |
 | T19 | W2 | Implement default search provider | T08 | DONE | Created `patches/echothink/0005-default-search-provider.patch` and appended it to the Echothink tail block after `echothink/0002-default-policies-and-preferences.patch`. The patch re-points the inherited "No Search" prepopulated engine slot to Echothink Search and adds `default_search_provider` values to the T08 initial-preferences file: search URL `https://search.echothink.ai/search?q={searchTerms}` and suggest URL `https://search.echothink.ai/suggest?q={searchTerms}`. Search suggestions remain disabled by default over the inherited baseline and use the Echothink suggest route only when enabled. No omnibox internals, direct URL navigation, network stack, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. Task note: `docs/echothink-browser-alpha/t19-implement-default-search-provider.md`. |
+| T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 
 ## T00 Notes
 
@@ -695,3 +696,70 @@ Known limitations:
   build with a clean profile.
 - Backend availability of `search.echothink.ai` was not validated; the URLs are
   browser route contracts only.
+
+## T30 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`
+  (new task note)
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T30 depends on T05 and T06; both are `DONE`.
+- The canonical-root mismatch is carried forward for this docs-only spec:
+  documentation lives under `echothink-studio-new/docs`; patches and assets live
+  at the inherited build root one directory up.
+
+Packaging identity decisions:
+
+- Base Windows application display name, Stable Start Menu shortcut, Stable
+  desktop shortcut if created, and Apps & Features / uninstall display name:
+  `Echothink Browser`.
+- Start Menu folder: `Echothink`.
+- Installer stem: `EchothinkBrowserSetup`; channelized artifacts may use names
+  such as `EchothinkBrowserSetup-Dev-x64.exe`.
+- Channel IDs and labels are fixed as `canary` / `Canary`, `dev` / `Dev`,
+  `beta` / `Beta`, `stable` / `Stable`, and `enterprise-stable` /
+  `Enterprise Stable`.
+- Alpha is not a channel; Alpha builds should use `dev` by default or `canary`
+  for short-lived experimental packaging tests.
+- Alpha must use Echothink user-visible product, installer, shortcut, uninstall,
+  and icon identity but may keep low-level Chromium-derived executable/internal
+  identifiers if renaming them increases patch risk.
+- Public Beta must complete user-visible Windows shell branding, channel-specific
+  app/update IDs, uninstall keys, install directories where needed, final
+  installer artwork, signed update metadata, and About/version channel labeling.
+
+Concrete paths linked by the spec:
+
+- `patches/echothink/0001-branding.patch`
+- `patches/extra/ungoogled-chromium/add-extra-channel-info.patch`
+- `patches/echothink/0002-default-policies-and-preferences.patch`
+- `assets/icons/echothink.ico`
+- `assets/installer/echothink-setup.ico`
+- `assets/installer/README.md`
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rg -n "^\\| T0[56] \\|.*DONE" echothink-studio-new/docs/progress.md` | Passed; T05 and T06 are marked `DONE`. |
+| Path checks for `patches/echothink/0001-branding.patch`, `patches/extra/ungoogled-chromium/add-extra-channel-info.patch`, `patches/echothink/0002-default-policies-and-preferences.patch`, `assets/icons/echothink.ico`, and `assets/installer/echothink-setup.ico` | Passed; all required local anchor paths exist. |
+| `rg -n "EchothinkBrowserSetup|Enterprise Stable|enterprise-stable|Alpha Versus Beta Branding Tradeoff|Update-Channel Metadata Contract|Smoke-Test Expectations" docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md` | Passed. |
+| `rg -n "t30-define-windows-app-identity-and-channels|Packaging metadata carries the canonical channel ID|Channel-specific Windows app identity" docs/ungoogled_to_echothink_browser_change_plan.md docs/echothink_browser_construction.md docs/progress.md` | Passed. |
+
+Known limitations:
+
+- No Chromium source checkout exists locally, so expected native Windows source
+  paths such as `chrome/app/theme/chromium/BRANDING` and
+  `chrome/install_static/install_modes.cc` must be verified during T31 against
+  pinned Chromium `148.0.7778.178`.
+- No Windows installer technology has been selected and no installer was built
+  or run in this environment.
+- Backend availability of `updates.echothink.ai` and
+  `app.echothink.ai/download-browser` was not validated; these are packaging
+  route contracts only.
