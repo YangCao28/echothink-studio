@@ -535,6 +535,12 @@ Implementation:
   available.
 - Add smoke test script for installed browser.
 
+The detailed Alpha Windows identity and channel spec is maintained in
+`docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`.
+It is the source of truth for the Windows display name, Start Menu name,
+`EchothinkBrowserSetup` installer stem, channel IDs and labels, Alpha-versus-Beta
+branding tradeoff, and update-channel metadata contract expected by packaging.
+
 Channels:
 
 ```text
@@ -550,6 +556,7 @@ Acceptance:
 - Windows build can be produced from the repo instructions.
 - Installer identity is Echothink Browser.
 - Channel is visible in About/version surfaces.
+- Packaging metadata carries the canonical channel ID and update track.
 - Smoke test can verify launch, New Tab, Side Panel, and search provider.
 
 ## 6. Recommended Implementation Sequence

@@ -166,6 +166,12 @@ installer name, first-run/About copy needs, Windows Alpha icon requirements,
 and upstream attribution rules used by T05, T06, and later Windows packaging
 tasks.
 
+The detailed Alpha Windows packaging identity and channel spec is maintained in
+`docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`.
+It defines `EchothinkBrowserSetup`, the Canary/Dev/Beta/Stable/Enterprise Stable
+channel IDs and labels, the Alpha-versus-Beta branding tradeoff, and the
+update-channel metadata expected by Windows packaging.
+
 The detailed Alpha default policy/preference set is maintained in
 `docs/echothink-browser-alpha/t07-define-default-policy-preference-set.md`.
 It defines the homepage, New Tab, default search and suggest URLs, default
@@ -586,6 +592,8 @@ Deliverables:
 - Smoke test automation
 - Rollback process
 - Release channel labels
+- Channel-specific Windows app identity from
+  `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`
 
 Acceptance:
 
