@@ -15,6 +15,7 @@ known limitations here.
 | T02 | W2 | Define Echothink repo structure | T01 | DONE | Repo skeleton plan created at `docs/echothink-browser-alpha/t02-define-echothink-repo-structure.md`. T01 is DONE; the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Defines owner/purpose/expected-contents/creation-trigger for `patches/echothink/`, `extensions/echothink-workspace/`, `assets/`, `build/windows/`, and the docs surface; specifies when `patches/series` entries may be added and how placeholders/generated artifacts are treated. No directory created, no patch produced, `patches/series` unchanged (108 inherited entries, 0 echothink). |
 | T03 | W1 | Validate inherited patch pipeline | T00 | DONE | Validation note created at `docs/echothink-browser-alpha/t03-validate-inherited-patch-pipeline.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for validating the inherited tree one directory up. `patches/series` has 108 entries, 0 missing files, 0 duplicates, and 0 Echothink entries. Existing Windows/tooling failures are documented as baseline issues. No Echothink patch work started. |
 | T04 | W1 | Define product branding inventory | T00 | DONE | Branding inventory created at `docs/echothink-browser-alpha/t04-define-product-branding-inventory.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. User-visible name is `Echothink Browser`; Windows Start Menu name is `Echothink Browser`; installer name stem is `EchothinkBrowserSetup`; About/first-run copy, icon asset requirements, and Chromium/Ungoogled Chromium attribution requirements are documented. No patch or asset work started. |
+| T05 | W2 | Implement branding patch | T01, T04 | DONE | Task note at `docs/echothink-browser-alpha/t05-implement-branding-patch.md`. Prerequisites T01 and T04 are DONE. Created `patches/echothink/0001-branding.patch` (the first Echothink-owned patch) and appended `echothink/0001-branding.patch` to the tail of `patches/series` after all inherited patches. Patch updates `IDS_PRODUCT_NAME`/`IDS_SHORT_PRODUCT_NAME` in `chrome/app/chromium_strings.grd` and the first-run `<title>`/`<h2>` in `chrome/browser/ui/webui/ungoogled_first_run.h` to `Echothink Browser`; upstream credits/licenses and the first-run attribution sentence are preserved; `BRANDING`/executable/installer identity deferred to T30/T31. Validated by real `patch -p1` against the pinned Chromium `148.0.7778.178` source (both hunks applied cleanly, no fuzz) and `devutils/check_patch_files.py` passing. |
 | T06 | W2 | Add Echothink visual assets | T04 | DONE | Asset bundle created at the inherited canonical build root `assets/` (icons/, installer/, about/, tools/), with task note at `docs/echothink-browser-alpha/t06-add-echothink-visual-assets.md`. T04 is DONE; the canonical-root mismatch is carried forward — as the first artifact-producing task, assets live at the build root the packaging/branding patches consume, not under docs-only `echothink-studio-new`. Delivered original Echothink artwork: master SVG, PNG app icons (16/20/24/32/40/48/64/128/256), multi-resolution `echothink.ico` and `echothink-setup.ico`, and About/first-run logos (64/128/256). All required Windows Alpha sizes verified present. Installer banner/dialog bitmaps deferred to T30/T32. Wiring into Chromium/installer owned by T05/T30/T32. |
 | T07 | W1 | Define default policy/preference set | T00 | DONE | Defaults spec created at `docs/echothink-browser-alpha/t07-define-default-policy-preference-set.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Homepage, New Tab, search URL, suggest URL, default bookmarks, preferred policy/preference surfaces, and enterprise-safe defaults are documented. No patch or backend work started. |
 | T09 | W1 | Confirm New Tab insertion point | T00 | DONE | Hook decision created at `docs/echothink-browser-alpha/t09-confirm-new-tab-insertion-point.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Selected hook: `HandleNewTabPageLocationOverride()` via the normal-profile New Tab override preference. Avoid a global `--custom-ntp` default for Alpha because the inherited switch can affect incognito external New Tabs. No patch work started. |
@@ -475,3 +476,59 @@ Known limitations:
   inherited patches are applied.
 - T09 assigns fallback implementation to T10/T11/T20 and does not validate
   remote `https://app.echothink.ai/newtab` availability.
+
+## T05 Notes
+
+Changed files:
+
+- `patches/echothink/0001-branding.patch` (new; first Echothink-owned patch)
+- `patches/series` (appended `echothink/0001-branding.patch` as the tail block)
+- `docs/echothink-browser-alpha/t05-implement-branding-patch.md` (new task note)
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T05 depends on T01 and T04; both are `DONE`.
+- The canonical-root mismatch is carried forward: the patch and `patches/series`
+  live in the inherited tree (one directory up), while this note lives under
+  `echothink-studio-new\docs`. Chromium pin: `148.0.7778.178`.
+
+Implementation decisions:
+
+- Smallest stable user-visible insertion points only:
+  - `chrome/app/chromium_strings.grd`: `IDS_PRODUCT_NAME` and
+    `IDS_SHORT_PRODUCT_NAME` (non-Chrome-for-Testing `<else>` branch)
+    `Chromium` -> `Echothink Browser`.
+  - `chrome/browser/ui/webui/ungoogled_first_run.h`: first-run `<title>` and
+    `<h2>` heading `ungoogled-chromium` -> `Echothink Browser`.
+- Upstream attribution preserved: credits/license generation untouched; the
+  first-run "built with ungoogled-chromium patches ... default Chromium
+  experience" sentence and links kept verbatim; Chrome-for-Testing `<then>`
+  branch unchanged.
+- Deferred by design: `chrome/app/theme/chromium/BRANDING`,
+  executable/installer identity, Start Menu/uninstall names, and channel labels
+  (T30/T31); icon/logo assets (T06).
+- Patch carries the required T01 Echothink header; `Depends-On: none`; the
+  ordering dependency on the inherited `first-run-page.patch` is satisfied
+  because Echothink patches apply after all inherited patches.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `python3 devutils/check_patch_files.py` | Passed, exit 0 (patch exists and is referenced; no missing/unused patches). |
+| Patch placement check (`patches/echothink/0001-branding.patch`) | Passed: present under `patches/echothink/`. |
+| `patches/series` tail check | Passed: `echothink/0001-branding.patch` is the final entry, after all inherited patches, preceded by a blank separator line; no placeholder entries. |
+| Real `patch -p1 --dry-run` and `patch -p1` against pinned Chromium source | Passed: fetched real `chromium_strings.grd` at tag `148.0.7778.178`, reconstructed `ungoogled_first_run.h` via the inherited `first-run-page.patch`, then both hunks applied cleanly, exit 0, no fuzz, no offset, no rejects. |
+| Post-apply content check | Passed: product-name strings and first-run title/heading read `Echothink Browser`; attribution sentence preserved; Chrome-for-Testing branch unchanged. |
+
+Known limitations:
+
+- No full browser build/visual smoke test was run in this environment; About and
+  `chrome://ungoogled-first-run` rendering should be confirmed in a real build.
+- `validate_patches.py --remote` remains blocked by the inherited `DEPS` parser
+  issue documented in T03; the targeted dry-run above validates this patch's
+  hunks directly against the real pinned source.
+- `chrome://version` build label still appends `ungoogled-chromium` via the
+  inherited `add-extra-channel-info.patch`; channel/label wording is a T30
+  packaging concern, not part of T05's product-name change.
