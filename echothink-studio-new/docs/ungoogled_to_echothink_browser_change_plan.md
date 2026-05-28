@@ -565,6 +565,13 @@ Tasks:
 - Add `build/windows/`.
 - Add browser-only docs.
 
+The detailed Alpha repository skeleton plan for these paths is maintained in
+`docs/echothink-browser-alpha/t02-define-echothink-repo-structure.md`. It
+defines the owner, purpose, and expected contents of each path, when
+`patches/series` entries may be added (only when a real patch file exists), and
+that placeholder directories/files and generated build artifacts are not
+committed.
+
 Done when:
 
 - Existing validation still passes.
