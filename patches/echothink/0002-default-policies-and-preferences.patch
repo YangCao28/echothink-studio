@@ -1,20 +1,16 @@
 # Echothink-Patch: 0002-default-policies-and-preferences
-# Title: Seed Echothink default search, homepage, New Tab route, and bookmarks
+# Title: Seed Echothink homepage, New Tab route, and bookmarks
 # Area: defaults
 # Depends-On: none
-# Inherited-Depends-On: core/ungoogled-chromium/replace-google-search-engine-with-nosearch.patch, extra/ungoogled-chromium/add-flag-for-custom-ntp.patch (this patch edits context introduced by those inherited patches and therefore must apply after them)
-# Browser-Layer-Reason: First-run browser defaults (default search engine, homepage, New Tab route, and starter bookmarks) are browser-shell configuration that must exist on the client before any Echothink service is reachable. They cannot be supplied by a backend service because they govern where the browser sends the user before authentication and which provider the omnibox uses.
+# Inherited-Depends-On: extra/ungoogled-chromium/add-flag-for-custom-ntp.patch (this patch edits context introduced by that inherited patch and therefore must apply after it)
+# Browser-Layer-Reason: First-run browser defaults (homepage, New Tab route, and starter bookmarks) are browser-shell configuration that must exist on the client before any Echothink service is reachable. They cannot be supplied by a backend service because they govern the first browser entry points before authentication.
 # Preferred-Surface-Checked: preference, existing-hook
 # Security-Critical-Areas: none
-# Native-Files-Touched: third_party/search_engines_data/resources/definitions/prepopulated_engines.json, chrome/browser/chrome_content_browser_client.cc, chrome/browser/resources/echothink/initial_preferences.json (new), chrome/browser/resources/echothink/echothink_bookmarks.html (new)
+# Native-Files-Touched: chrome/browser/chrome_content_browser_client.cc, chrome/browser/resources/echothink/initial_preferences.json (new), chrome/browser/resources/echothink/echothink_bookmarks.html (new)
 # Rebase-Risk: medium
-# Validation: Apply inherited patches, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178; launch and confirm the omnibox default provider is Echothink Search, a new tab opens https://app.echothink.ai/newtab for a normal profile, and a fresh profile seeded with the bundled initial preferences shows the Echothink homepage, startup URL, and starter bookmarks. Native search-suggestions, bookmark-manager, history, downloads, password, cookie, and DevTools behavior must remain inherited.
+# Validation: Apply inherited patches, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178; launch and confirm a new tab opens https://app.echothink.ai/newtab for a normal profile, and a fresh profile seeded with the bundled initial preferences shows the Echothink homepage, startup URL, and starter bookmarks. Native bookmark-manager, history, downloads, password, cookie, and DevTools behavior must remain inherited.
 #
 # Notes:
-# - Default search provider is configured by re-pointing the inherited "No Search"
-#   prepopulated engine slot (id SEARCH_ENGINE_GOOGLE) to Echothink Search. This
-#   reuses the inherited default-engine mechanism; the DefaultSearchProvider
-#   enterprise policy and user choice still override it.
 # - New Tab routing reuses the inherited custom-ntp hook. Only the normal-profile,
 #   no-override fallback is seeded. Incognito and any explicit
 #   kNewTabPageLocationOverride (NewTabPageLocation policy) value are preserved,
@@ -27,24 +23,6 @@
 #   chrome/browser/resources/echothink/initial_preferences.json as the browser's
 #   "initial_preferences" file and the bookmarks file alongside it.
 
---- a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
-+++ b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
-@@ -170,10 +170,11 @@
-     },
-
-     "google": {
--      "name": "No Search",
--      "keyword": "nosearch",
--      "favicon_url": "about:blank",
--      "search_url": "http://{searchTerms}",
-+      "name": "Echothink Search",
-+      "keyword": "echothink.ai",
-+      "favicon_url": "https://search.echothink.ai/favicon.ico",
-+      "search_url": "https://search.echothink.ai/search?q={searchTerms}",
-+      "suggest_url": "https://search.echothink.ai/suggest?q={searchTerms}",
-       "new_tab_url": "about:blank",
-       "type": "SEARCH_ENGINE_GOOGLE",
-       "preconnect_to_search_url" : "ALLOWED",
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
 @@ -849,6 +849,12 @@ bool HandleNewTabPageLocationOverride(
@@ -62,7 +40,7 @@
    }
 --- /dev/null
 +++ b/chrome/browser/resources/echothink/initial_preferences.json
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,25 @@
 +{
 +  "homepage": "https://app.echothink.ai/dashboard",
 +  "homepage_is_newtabpage": false,
@@ -86,13 +64,6 @@
 +    "make_chrome_default": false,
 +    "suppress_first_run_bubble": true,
 +    "do_not_launch_chrome": true
-+  },
-+  "default_search_provider": {
-+    "enabled": true,
-+    "name": "Echothink Search",
-+    "keyword": "echothink.ai",
-+    "search_url": "https://search.echothink.ai/search?q={searchTerms}",
-+    "suggest_url": "https://search.echothink.ai/suggest?q={searchTerms}"
 +  }
 +}
 --- /dev/null

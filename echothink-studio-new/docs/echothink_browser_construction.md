@@ -84,10 +84,10 @@ echothink-browser/
     extra/
     echothink/
       0001-branding.patch
-      0002-default-policies.patch
+      0002-default-policies-and-preferences.patch
       0003-new-tab.patch
       0004-side-panel-extension.patch
-      0005-default-search.patch
+      0005-default-search-provider.patch
       0006-login-gate.patch
       0007-device-identity.patch
       0008-echo-protocol.patch

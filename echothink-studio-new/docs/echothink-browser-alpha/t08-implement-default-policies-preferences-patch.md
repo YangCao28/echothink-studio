@@ -24,26 +24,21 @@ structure/parse here and deferred to the build pipeline (consistent with T03).
 ## What This Patch Does
 
 Single-purpose theme: seed Echothink first-run defaults without changing native
-Chromium primitives. Delivered as the first Echothink patch:
+Chromium primitives. Delivered as the Echothink defaults patch:
 `patches/echothink/0002-default-policies-and-preferences.patch`.
 
 | Default | Value | Surface used | Override-safe? |
 |---|---|---|---|
-| Default search provider | `Echothink Search`, keyword `echothink.ai`, `https://search.echothink.ai/search?q={searchTerms}` | Re-point the inherited "No Search" prepopulated engine slot (`SEARCH_ENGINE_GOOGLE`) in `prepopulated_engines.json` | Yes — DefaultSearchProvider policy and user choice still override |
-| Suggest URL | `https://search.echothink.ai/suggest?q={searchTerms}` | Same prepopulated engine entry (`suggest_url` field, enabled by inherited `add-suggestions-url-field.patch`) | Yes — suggestions stay disabled by default per inherited baseline |
 | New Tab (normal profile) | `https://app.echothink.ai/newtab` | Inherited `HandleNewTabPageLocationOverride()` empty-branch fallback in `chrome_content_browser_client.cc` | Yes — explicit `kNewTabPageLocationOverride` / NewTabPageLocation policy and `--custom-ntp` still win; incognito untouched |
 | Homepage | `https://app.echothink.ai/dashboard` (`homepage_is_newtabpage = false`) | Chromium initial preferences file | Yes — HomepageLocation policy and user setting override |
 | Startup | Restore-on-startup = open URL list → `https://app.echothink.ai/dashboard` | Chromium initial preferences file | Yes — RestoreOnStartup policy and user setting override |
 | Default bookmarks | Workspace, New Tab, Search, Support, Browser Download, Browser Updates | Netscape bookmarks file imported via initial preferences `import_bookmarks_from_file` | Yes — editable user bookmarks; native bookmark manager unchanged |
 
+Default search provider and suggest URL configuration are split into
+`patches/echothink/0005-default-search-provider.patch` for T19.
+
 ### Why each surface
 
-- **Search provider — prepopulated engine edit.** The inherited
-  `replace-google-search-engine-with-nosearch.patch` already neutralizes the
-  default engine slot. Re-pointing that same slot to Echothink Search is the
-  smallest, most reliable way to make the omnibox default resolve to Echothink
-  while leaving the DefaultSearchProvider policy and user choice intact. This is
-  the established mechanism in this repo for the default engine.
 - **New Tab — inherited custom-ntp hook.** T09 selected
   `HandleNewTabPageLocationOverride()`. This patch only seeds the
   normal-profile, no-override fallback (when both the
@@ -74,7 +69,6 @@ Series update:
 
 Chromium source files touched by the patch hunks (applied during build):
 
-- `third_party/search_engines_data/resources/definitions/prepopulated_engines.json` (edit)
 - `chrome/browser/chrome_content_browser_client.cc` (edit)
 - `chrome/browser/resources/echothink/initial_preferences.json` (new file)
 - `chrome/browser/resources/echothink/echothink_bookmarks.html` (new file)
@@ -83,13 +77,11 @@ Chromium source files touched by the patch hunks (applied during build):
 
 - The patch is the tail block of `patches/series`, after all 108 inherited
   entries, per T01.
-- Two hunks edit context introduced by inherited patches, so this patch **must**
-  apply after them (recorded in the patch header `Inherited-Depends-On`):
-  - `core/ungoogled-chromium/replace-google-search-engine-with-nosearch.patch`
-    (the `prepopulated_engines.json` "No Search" slot).
-  - `extra/ungoogled-chromium/add-flag-for-custom-ntp.patch` (the
-    `HandleNewTabPageLocationOverride()` body and the `kNewTabPageLocationOverride`
-    read).
+- One hunk edits context introduced by an inherited patch, so this patch **must**
+  apply after it (recorded in the patch header `Inherited-Depends-On`):
+  `extra/ungoogled-chromium/add-flag-for-custom-ntp.patch` (the
+  `HandleNewTabPageLocationOverride()` body and the
+  `kNewTabPageLocationOverride` read).
 - No dependency on another Echothink patch (`Depends-On: none`).
 
 ## Enterprise / Native Preservation
@@ -112,12 +104,12 @@ pipeline's job, deferred per T03):
 | Check | Command | Result |
 |---|---|---|
 | Patch placement | `ls patches/echothink/` | `0002-default-policies-and-preferences.patch` present. |
-| Series entry present, after inherited patches | `grep -n "echothink/" patches/series` | Single entry at the tail block (line 113), after inherited tail `add-flag-for-disabling-jit.patch`. |
+| Series entry present, after inherited patches | `grep -n "echothink/" patches/series` | `0002-default-policies-and-preferences.patch` appears in the Echothink tail block after inherited tail `add-flag-for-disabling-jit.patch`. |
 | Every series entry maps to a file | shell loop over `patches/series` | `missing_count=0`. |
 | Repo config validation | `python3 devutils/validate_config.py` | Exit 0, clean (no unused-patch, duplicate, or readability warnings). Runs clean on POSIX, unlike the Windows path-separator issue noted for T00/T03. |
 | Patch-file checks | `python3 devutils/check_patch_files.py` | Exit 0, clean. |
 | GN flag check | `python3 devutils/check_gn_flags.py` | Exit 0. |
-| Unified-diff parse | `git apply --stat` / `git apply --numstat` | Parses cleanly: prepopulated_engines.json +5/-4, chrome_content_browser_client.cc +6, initial_preferences.json +32, echothink_bookmarks.html +15. |
+| Unified-diff parse | `git apply --stat` / `git apply --numstat` | Parses cleanly: chrome_content_browser_client.cc +6, initial_preferences.json +25, echothink_bookmarks.html +15. |
 
 Patch application command for the build pipeline / a reviewer with a pinned
 Chromium tree:
@@ -135,19 +127,18 @@ python3 devutils/validate_patches.py --local <path-to-unmodified-chromium-src>
 
 ## Known Limitations
 
-- No Chromium source checkout exists locally, so the two edit hunks were authored
-  against context that inherited patches prove exists in the pinned tree
-  (post-`nosearch` for `prepopulated_engines.json`; post-`add-flag-for-custom-ntp`
-  for `chrome_content_browser_client.cc`). Hunk line numbers are approximate;
-  GNU `patch` tolerates line offset but not context fuzz. Exact context must be
+- No Chromium source checkout exists locally, so the New Tab edit hunk was
+  authored against context that inherited patches prove exists in the pinned
+  tree (post-`add-flag-for-custom-ntp` for
+  `chrome_content_browser_client.cc`). Hunk line numbers are approximate; GNU
+  `patch` tolerates line offset but not context fuzz. Exact context must be
   re-confirmed at build time and on every Chromium rebase.
 - Homepage, startup URL, and default bookmarks take effect only once Windows
   packaging (T30) installs `initial_preferences.json` (and the bookmarks file)
   as the browser's initial preferences. The patch commits the canonical content;
   the packaging wiring is T30's responsibility.
-- Backend availability of `app.echothink.ai`, `search.echothink.ai`,
-  `updates.echothink.ai` routes is not validated; these are browser route
-  contracts only.
+- Backend availability of `app.echothink.ai` and `updates.echothink.ai` routes
+  is not validated; these are browser route contracts only.
 - `0003-new-tab-and-first-run` owns the local New Tab fallback page and first-run
   flow; this patch only seeds the default New Tab route value.
 - `validate_patches.py --remote` remains blocked by the inherited Chromium `DEPS`
@@ -157,7 +148,7 @@ python3 devutils/validate_patches.py --local <path-to-unmodified-chromium-src>
 
 - T10 (`0003-new-tab-and-first-run`): local fallback/first-run page; may build on
   the New Tab default seeded here.
-- T19: final default search provider behavior if split from T08.
+- T19 (`0005-default-search-provider`): default search provider and suggest URL.
 - T30 (Windows packaging): install `initial_preferences.json` + bookmarks file as
   the browser initial preferences; confirm first-run defaults on a clean install.
 - Every Chromium rebase: re-verify the two edit hunks' context per the T01 rebase

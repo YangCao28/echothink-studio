@@ -1,0 +1,57 @@
+# Echothink-Patch: 0005-default-search-provider
+# Title: Configure Echothink Search as the default provider
+# Area: search
+# Depends-On: echothink/0002-default-policies-and-preferences.patch
+# Inherited-Depends-On: core/ungoogled-chromium/replace-google-search-engine-with-nosearch.patch, extra/ungoogled-chromium/add-suggestions-url-field.patch
+# Browser-Layer-Reason: The omnibox default search provider is local browser configuration that determines where typed searches are sent before any Echothink service can influence the profile. It cannot be provided solely by a backend service.
+# Preferred-Surface-Checked: preference
+# Security-Critical-Areas: none
+# Native-Files-Touched: third_party/search_engines_data/resources/definitions/prepopulated_engines.json, chrome/browser/resources/echothink/initial_preferences.json
+# Rebase-Risk: low
+# Validation: Apply inherited patches, then echothink/0002-default-policies-and-preferences.patch, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178; launch and confirm omnibox searches route to https://search.echothink.ai/search?q={searchTerms}, suggestions use https://search.echothink.ai/suggest?q={searchTerms} when enabled, and direct URL navigation still loads URLs normally.
+#
+# Notes:
+# - This patch re-points the inherited "No Search" prepopulated engine slot
+#   (SEARCH_ENGINE_GOOGLE) to Echothink Search. This preserves the existing
+#   default-engine mechanism and keeps DefaultSearchProvider policy and user
+#   search-engine choice override behavior intact.
+# - The suggest URL is configured on the provider but does not enable search
+#   suggestions over the inherited disabled-by-default baseline. Suggestions use
+#   the Echothink route only when a user or enterprise policy enables them.
+# - No omnibox internals, network stack, URL navigation, TLS, sandbox, renderer,
+#   history, downloads, bookmarks, password manager, cookies, or DevTools
+#   behavior is changed.
+
+--- a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
++++ b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
+@@ -170,10 +170,11 @@
+     },
+
+     "google": {
+-      "name": "No Search",
+-      "keyword": "nosearch",
+-      "favicon_url": "about:blank",
+-      "search_url": "http://{searchTerms}",
++      "name": "Echothink Search",
++      "keyword": "echothink.ai",
++      "favicon_url": "https://search.echothink.ai/favicon.ico",
++      "search_url": "https://search.echothink.ai/search?q={searchTerms}",
++      "suggest_url": "https://search.echothink.ai/suggest?q={searchTerms}",
+       "new_tab_url": "about:blank",
+       "type": "SEARCH_ENGINE_GOOGLE",
+       "preconnect_to_search_url" : "ALLOWED",
+--- a/chrome/browser/resources/echothink/initial_preferences.json
++++ b/chrome/browser/resources/echothink/initial_preferences.json
+@@ -21,5 +21,12 @@
+     "make_chrome_default": false,
+     "suppress_first_run_bubble": true,
+     "do_not_launch_chrome": true
++  },
++  "default_search_provider": {
++    "enabled": true,
++    "name": "Echothink Search",
++    "keyword": "echothink.ai",
++    "search_url": "https://search.echothink.ai/search?q={searchTerms}",
++    "suggest_url": "https://search.echothink.ai/suggest?q={searchTerms}"
+   }
+ }
