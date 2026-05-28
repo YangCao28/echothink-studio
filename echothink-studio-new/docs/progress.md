@@ -16,6 +16,7 @@ known limitations here.
 | T04 | W1 | Define product branding inventory | T00 | DONE | Branding inventory created at `docs/echothink-browser-alpha/t04-define-product-branding-inventory.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. User-visible name is `Echothink Browser`; Windows Start Menu name is `Echothink Browser`; installer name stem is `EchothinkBrowserSetup`; About/first-run copy, icon asset requirements, and Chromium/Ungoogled Chromium attribution requirements are documented. No patch or asset work started. |
 | T07 | W1 | Define default policy/preference set | T00 | DONE | Defaults spec created at `docs/echothink-browser-alpha/t07-define-default-policy-preference-set.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Homepage, New Tab, search URL, suggest URL, default bookmarks, preferred policy/preference surfaces, and enterprise-safe defaults are documented. No patch or backend work started. |
 | T09 | W1 | Confirm New Tab insertion point | T00 | DONE | Hook decision created at `docs/echothink-browser-alpha/t09-confirm-new-tab-insertion-point.md`. T00 is DONE and the canonical-root mismatch is carried forward as an acceptable baseline dependency for this docs-only task. Selected hook: `HandleNewTabPageLocationOverride()` via the normal-profile New Tab override preference. Avoid a global `--custom-ntp` default for Alpha because the inherited switch can affect incognito external New Tabs. No patch work started. |
+| T08 | W2 | Implement default policies/preferences patch | T01, T07 | DONE | First Echothink patch created: `patches/echothink/0002-default-policies-and-preferences.patch`, appended to `patches/series` as the tail block after inherited patches. Seeds default search provider (Echothink Search, prepopulated engine slot), normal-profile New Tab route (inherited custom-ntp hook empty-branch), and homepage/startup/default-bookmarks via Chromium initial preferences (new files `chrome/browser/resources/echothink/initial_preferences.json` and `echothink_bookmarks.html`). All defaults are override-safe; no locked policy; native bookmark/history/download/password/cookie/DevTools behavior untouched. Validated: `validate_config.py`, `check_patch_files.py`, `check_gn_flags.py` exit 0 clean; `git apply --numstat` parses cleanly; series has 0 missing files. Patch application against Chromium source deferred to build pipeline (no local checkout, per T03). Task note: `docs/echothink-browser-alpha/t08-implement-default-policies-preferences-patch.md`. |
 
 ## T00 Notes
 
@@ -358,3 +359,87 @@ Known limitations:
   inherited patches are applied.
 - T09 assigns fallback implementation to T10/T11/T20 and does not validate
   remote `https://app.echothink.ai/newtab` availability.
+
+## T08 Notes
+
+Changed files:
+
+- `patches/echothink/0002-default-policies-and-preferences.patch` (new, first
+  Echothink patch)
+- `patches/series` (appended Echothink tail block after inherited patches)
+- `docs/echothink-browser-alpha/t08-implement-default-policies-preferences-patch.md`
+  (new task note)
+- `docs/progress.md` (this file)
+
+Prerequisite status:
+
+- T08 depends on T01 and T07; both are `DONE`. The related New Tab hook decision
+  T09 is also `DONE`.
+- The T00 canonical-root mismatch is carried forward as an accepted baseline
+  dependency: planning docs live under `echothink-studio-new/docs`; the inherited
+  Ungoogled Chromium patch/config tree is the repository root one level up, where
+  the patch and `patches/series` change were made.
+
+Implementation decisions:
+
+- Default search provider: re-point the inherited "No Search" prepopulated engine
+  slot (`SEARCH_ENGINE_GOOGLE`) to `Echothink Search`, keyword `echothink.ai`,
+  search URL `https://search.echothink.ai/search?q={searchTerms}`, suggest URL
+  `https://search.echothink.ai/suggest?q={searchTerms}`. Reuses the inherited
+  default-engine mechanism; DefaultSearchProvider policy and user choice still
+  override.
+- New Tab default: seed the normal-profile, no-override fallback inside the
+  inherited `HandleNewTabPageLocationOverride()` hook (T09's chosen insertion
+  point). Incognito and explicit `kNewTabPageLocationOverride` /
+  NewTabPageLocation policy / `--custom-ntp` values are preserved.
+- Homepage, startup URL, and the six default bookmarks (Workspace, New Tab,
+  Search, Support, Browser Download, Browser Updates) are delivered as Chromium
+  initial preferences (`chrome/browser/resources/echothink/initial_preferences.json`)
+  plus a Netscape bookmarks file imported via `import_bookmarks_from_file`. These
+  are recommended distribution defaults, fully override-safe; native bookmark
+  storage and the bookmark manager are not modified.
+- No locked/mandatory policy is introduced. Inherited defaults preserved
+  (suggestions off by default, bookmark bar on, third-party cookies blocked,
+  password save/auto sign-in off). DevTools, downloads, history, cookies, TLS,
+  sandbox, renderer, and network stack are untouched.
+
+Ordering / dependencies:
+
+- Patch is the tail block of `patches/series` (line 113), after all 108
+  inherited entries.
+- Two edit hunks depend on inherited patches and must apply after them (recorded
+  in the patch header `Inherited-Depends-On`):
+  `core/ungoogled-chromium/replace-google-search-engine-with-nosearch.patch` and
+  `extra/ungoogled-chromium/add-flag-for-custom-ntp.patch`.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `ls patches/echothink/` | `0002-default-policies-and-preferences.patch` present. |
+| `grep -n "echothink/" patches/series` | One entry at line 113, after inherited tail `add-flag-for-disabling-jit.patch`. |
+| Shell loop mapping every non-comment series entry to a file | `missing_count=0`. |
+| `python3 devutils/validate_config.py` | Exit 0, clean (no unused-patch/duplicate/readability warnings). Runs clean on POSIX here. |
+| `python3 devutils/check_patch_files.py` | Exit 0, clean. |
+| `python3 devutils/check_gn_flags.py` | Exit 0. |
+| `git apply --stat` / `git apply --numstat` on the patch | Parses cleanly: prepopulated_engines.json +5/-4, chrome_content_browser_client.cc +6, initial_preferences.json +32, echothink_bookmarks.html +15. |
+
+Build-pipeline application command (deferred; no local Chromium checkout):
+
+- `patch -p1 < patches/echothink/0002-default-policies-and-preferences.patch`
+  from the pinned Chromium 148.0.7778.178 source root after inherited patches, or
+  `python3 devutils/validate_patches.py --local <unmodified-chromium-src>`.
+
+Known limitations:
+
+- No Chromium source checkout locally, so the two edit hunks were authored against
+  context that inherited patches prove exists in the pinned tree. Hunk line
+  numbers are approximate (GNU patch tolerates offset, not fuzz); exact context
+  must be re-confirmed at build time and on every Chromium rebase.
+- Homepage/startup/bookmarks take effect only once Windows packaging (T30)
+  installs the initial-preferences file (and bookmarks file). The patch commits
+  the canonical content; packaging wiring is T30.
+- `validate_patches.py --remote` remains blocked by the inherited Chromium `DEPS`
+  parser issue documented in T03; remote patch application was not run.
+- Backend availability of the Echothink app/search/update routes is not
+  validated; they are browser route contracts only.
