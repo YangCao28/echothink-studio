@@ -319,6 +319,15 @@ https://api.echothink.ai/*
 https://search.echothink.ai/*
 ```
 
+Alpha implementation details are recorded in:
+
+- `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`
+- `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`
+
+T13 bundles the extension as a Chromium component extension with fixed ID
+`lokdibgfmiemhdoogailbfpdggndpolk`, no `update_url`, and the same narrow
+permission set listed above.
+
 Acceptance:
 
 - Extension is installed by default with the browser.
