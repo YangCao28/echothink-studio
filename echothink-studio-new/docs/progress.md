@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T25 done; T26 ready; T37 blocked)
+Last updated: 2026-05-29 (T26 done; T27 unblocked; T33-T37 still blocked)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -36,8 +36,8 @@ known limitations here.
 | T23 | W6 | Implement device key generation and storage | T22 | DONE | Created active patch `patches/echothink/0007-device-identity.patch` and inserted `echothink/0007-device-identity.patch` into `patches/series` immediately after `echothink/0006-login-gate.patch`. Patch adds `chrome/browser/echothink/device_identity/`, registers Local State/profile prefs, creates or reloads an ECDSA P-256 / `ES256` identity on Windows startup, protects private-key bytes with current-user Windows DPAPI in `User Data/Echothink Device Identity/device_key.dpapi`, stores only public/non-secret metadata, and provides `ResetLocalEnrollmentState` to delete the protected key file, rotate `installation_id`, clear enrollment metadata, and clear login-gate readiness prefs. No extension bridge/proof helper/backend/network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools changes; no key material, tokens, signed proof values, or proof internals exposed. Task note updated at `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`. |
 | T24 | W7 | Implement narrow extension bridge | T13, T23 | DONE | Created active patch `patches/echothink/0024-narrow-extension-bridge.patch` and appended `echothink/0024-narrow-extension-bridge.patch` to `patches/series` after `echothink/0018-side-panel-local-states.patch`. The bridge exposes only `chrome.echothinkDevice.getDeviceStatus`, `requestEnrollmentChallenge`, `signProofPayload`, and `clearEnrollment`; `_api_features.json` allowlists only bundled extension ID `lokdibgfmiemhdoogailbfpdggndpolk` by hashed ID and disables generic component-extension auto-grant; native code also checks the exact caller ID. The extension manifest remains unchanged and narrow. No backend service, gateway logic, canonical request-proof policy, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior, private key bytes, DPAPI blobs, access tokens, or raw key handles were exposed. Task note: `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`. |
 | T25 | W8 | Define request proof payload and allowlist | T24 | DONE | Proof helper spec finalized at `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`. Prerequisite T24 is `DONE`. The spec defines canonical payload fields (`method`, `url`, `timestamp`, optional `nonce`, optional `access_token_hash`), field order and URL normalization, an exact Echothink HTTPS signing allowlist (`api.echothink.ai` `/v1/`, `auth.echothink.ai` `/browser/` and `/device/`, `app.echothink.ai` `/api/`), malformed and disallowed-destination rejection behavior, safe opaque proof result shape, browser-side signing-only responsibilities, and backend/gateway ownership of replay protection and proof validation. No patch, backend service, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior, private key material, access token, or proof internals were changed or exposed. |
-| T26 | W9 | Implement proof signing helper | T25 | READY | T25 is now `DONE`, so T26 is unblocked from a prerequisite standpoint. T26 still must create `patches/echothink/0008-request-proof-helper.patch`, enforce the T25 canonical payload/allowlist/rejection contract natively before signing, return the safe opaque proof result shape, and add `echothink/0008-request-proof-helper.patch` to `patches/series` when active. No proof-helper patch exists yet. Task note updated at `docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md`. |
-| T27 | W10 | Integrate proof helper into extension calls | T16, T24, T26 | BLOCKED | T27 remains blocked because prerequisite T26 is not `DONE` and no active `patches/echothink/0008-request-proof-helper.patch` exists. T16, T24, and T25 are `DONE`; the extension has a narrow device bridge and the final T25 proof contract, but no helper implementation exists for extension calls to consume. No proof integration was added to chat/API calls. Task note updated at `docs/echothink-browser-alpha/t27-integrate-proof-helper-into-extension-calls.md`. |
+| T26 | W9 | Implement proof signing helper | T25 | DONE | Created active patch `patches/echothink/0008-request-proof-helper.patch` and inserted `echothink/0008-request-proof-helper.patch` into `patches/series` immediately after `echothink/0024-narrow-extension-bridge.patch` (it modifies files the T24 bridge creates). The patch replaces the T24 opaque-string signing surface with the T25 canonical request-proof contract: `chrome.echothinkDevice.signProofPayload` now takes structured fields (`method`, `url`, `timestamp`, optional `nonce`, optional `access_token_hash`); new native `BuildCanonicalRequestProof()` (`chrome/browser/extensions/api/echothink_device/echothink_request_proof.{h,cc}`) validates field shape, enforces the exact Echothink HTTPS signing allowlist (`api.echothink.ai` `/v1/`, `auth.echothink.ai` `/browser/` and `/device/`, `app.echothink.ai` `/api/`), builds the canonical UTF-8 JSON in fixed field order, and only then signs the canonical bytes with the existing T24 `SignProofPayload()` device-key entry point. Malformed payloads return `invalid_payload`; third-party/sibling/lookalike/http/port/userinfo/IP destinations return `disallowed_destination` before any signature. Result is the safe opaque shape `{ok, proof_type:"echothink-request-proof-v1", proof, key_id, key_algorithm:"ES256", timestamp}`; no private key, DPAPI blob, raw token, canonical bytes, or bare signature is returned. No network stack, TLS validation, sandbox, renderer internals, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed; the extension manifest/host permissions are unchanged. Validated: `git apply --numstat`, real `patch -p1` against a reconstructed post-`echothink/0024` tree (applied tree byte-matches intended), `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0, and a 29-case decision-table logic mirror (allowlisted signs, third-party/malformed rejected) passed 29/29. Runtime signing smoke deferred to T33-T35 (no local Chromium build). Task note: `docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md`. |
+| T27 | W10 | Integrate proof helper into extension calls | T16, T24, T26 | READY | T27 is now unblocked from a prerequisite standpoint: T16, T24, and T26 are all `DONE`. Active patch `patches/echothink/0008-request-proof-helper.patch` provides the canonical signing helper with the safe opaque result shape (`proof_type`, `proof`, `key_id`, `key_algorithm`, `timestamp`) that T27 must attach via the backend-approved DPoP-style header contract. T27 still owns wiring the helper into the bundled extension's chat/API calls and must not widen extension permissions, add `webRequest`, use native messaging, log proof results, or attach proofs to non-allowlisted destinations. No proof integration has been added to chat/API calls yet. Task note: `docs/echothink-browser-alpha/t27-integrate-proof-helper-into-extension-calls.md`. |
 | T28 | W5 | Implement optional `echo://` resolver | T10 | DONE | Task note at `docs/echothink-browser-alpha/t28-implement-optional-resolver.md`. Prerequisite T10 is DONE. Created `patches/echothink/0009-echo-protocol-router.patch` and inserted `echothink/0009-echo-protocol-router.patch` into `patches/series` after `echothink/0011-first-run-gate-shell.patch` and before `echothink/0010-windows-packaging-identity.patch`. Patch adds a narrow `chrome/browser/ui/browser_navigator.cc` navigation helper that rewrites only known `echo://` route shapes (`dashboard`, `project/{id}`, `task-wave/{id}`, `app-domain/{domain}/{instance}`, `artifact/{id}`, `approval/{id}`) to matching `https://app.echothink.ai/` URLs, accepts only unreserved non-empty segments, rejects query/fragment payloads, and clears the `echo://` referrer. No backend authorization, device proof, protected content, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Unsupported/invalid route UX remains T29. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and real `patch -p1` against the pinned Chromium `148.0.7778.178` `browser_navigator.cc` source copy all pass. |
 | T29 | W6 | Add invalid `echo://` route fallback page | T28 | DONE | Task note at `docs/echothink-browser-alpha/t29-add-invalid-fallback-page.md`. Prerequisite T28 is DONE. Created `patches/echothink/0012-invalid-echo-route-fallback.patch` and inserted `echothink/0012-invalid-echo-route-fallback.patch` in `patches/series` immediately after `echothink/0009-echo-protocol-router.patch`. Patch keeps T28 valid route resolution intact and rewrites unsupported/invalid `echo://` navigations to local `chrome://echothink-invalid-echo`, clearing the original referrer and carrying no original route, segments, query, or fragment into the fallback URL or page. The WebUI page is static/script-free, contains no workspace/resource data, and links only to dashboard, setup, and support. No backend service, gateway logic, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and targeted `git apply --check --include=chrome/browser/ui/browser_navigator.cc` against the existing post-T28 source copy all pass. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
@@ -48,6 +48,75 @@ known limitations here.
 | T35 | W12 | Run Echothink behavior tests | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md`. T35 cannot run because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for behavior testing. T33 is still blocked by missing proof-helper implementation `patches/echothink/0008-request-proof-helper.patch`; T21, T22, T23, T24, and T25 are `DONE`, while T26 is `READY` but not implemented. Device identity now has an active patch but has not been runtime-tested for Windows DPAPI persistence/reset. Proof-helper URL allowlist signing cannot pass because the proof-helper artifact does not exist. |
 | T36 | W13 | Run Windows packaging smoke test | T31, T32, T35 | BLOCKED | Task note at `docs/echothink-browser-alpha/t36-run-windows-packaging-smoke-test.md`. T36 cannot run because prerequisite T35 is `BLOCKED`, with no explicit baseline exception for Windows packaging smoke. T31 and T32 are `DONE`; the Windows Alpha Dev identity patch, icon assets, update-channel metadata contract, and smoke procedure are present. However, no validated Alpha behavior pass or Windows installer candidate exists after T35, so install, Start Menu launch, app/icon identity, New Tab, Side Panel restart persistence, device identity persistence, search, signing/update-channel observations, and uninstall were not run. The remaining missing upstream artifact is `patches/echothink/0008-request-proof-helper.patch`. |
 | T37 | W14 | Produce Windows Alpha candidate | T33, T34, T35, T36 | BLOCKED | Task note at `docs/echothink-browser-alpha/t37-produce-windows-alpha-candidate.md`. T37 cannot produce a signed/tested Windows Alpha candidate because all direct prerequisites are `BLOCKED`, with no explicit baseline exception: T33 patch validation, T34 native regression, T35 Echothink behavior tests, and T36 Windows packaging smoke. T23 and T24 are now complete, and active Echothink patch count is `17`. No candidate artifact, signed installer, SHA256, channel sidecar, or build timestamp was emitted. Current traceability snapshot: Chromium pin `148.0.7778.178`, repository revision marker `1`, intended Alpha channel `dev`. The remaining missing required Alpha artifact is `patches/echothink/0008-request-proof-helper.patch`. Local metadata/input checks pass for existing packaging inputs, but no Windows build/sign/install/smoke was run. |
+
+## T26 Notes
+
+Changed / added files:
+
+- `patches/echothink/0008-request-proof-helper.patch` (new active patch)
+- `patches/series` (added `echothink/0008-request-proof-helper.patch` after
+  `echothink/0024-narrow-extension-bridge.patch`)
+- `docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T26 depends on T25. T25 is `DONE`.
+- T26 also builds on T24 (`patches/echothink/0024-narrow-extension-bridge.patch`)
+  and T23 (`patches/echothink/0007-device-identity.patch`), both `DONE`.
+
+Implementation summary:
+
+- Replaced the T24 opaque-string signing surface with the T25 canonical
+  request-proof contract. `chrome.echothinkDevice.signProofPayload` now takes a
+  structured `RequestProofOptions` dictionary (`method`, `url`, `timestamp`,
+  optional `nonce`, optional `access_token_hash`); all members are optional in
+  the IDL so native code is the single source of truth and returns
+  `invalid_payload` for any malformed input, including missing required fields.
+- New `chrome/browser/extensions/api/echothink_device/echothink_request_proof.{h,cc}`
+  provides `BuildCanonicalRequestProof()`, which validates field shape, enforces
+  the exact Echothink HTTPS signing allowlist, strips fragments, and builds the
+  canonical UTF-8 JSON by hand in the fixed field order (method, url, timestamp,
+  nonce, access_token_hash) so key order is contractual.
+- `echothink_device_api.cc` maps the canonicalizer status to the documented
+  error codes, signs the canonical bytes with the existing T24
+  `echothink::device_identity::SignProofPayload()` device-key entry point, and
+  returns the safe opaque result. `BUILD.gn` adds the new sources and `//url`.
+- The opaque `proof` is `base64url(canonical_json).base64url(DER ECDSA-SHA256
+  signature)`. No private key, DPAPI blob, raw token, canonical bytes, or bare
+  signature is returned, logged, or stored.
+
+Signing allowlist (everything else -> `disallowed_destination`):
+
+- `https://api.echothink.ai/v1/`
+- `https://auth.echothink.ai/browser/`
+- `https://auth.echothink.ai/device/`
+- `https://app.echothink.ai/api/`
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `git apply --numstat patches/echothink/0008-request-proof-helper.patch` | Passed: 5 files (BUILD.gn 3/0, echothink_device_api.cc 42/15, echothink_request_proof.cc 239/0, echothink_request_proof.h 46/0, echothink_device.idl 24/8). |
+| `patch -p1` against a reconstructed post-`echothink/0024` tree | Passed: all 5 files applied with no fuzz; applied tree byte-matches the intended source. |
+| `python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `python3 devutils/validate_config.py` | Passed, exit 0. |
+| Trailing-whitespace scan of added patch lines | Passed: none. |
+| Decision-table logic mirror (29 cases) | Passed 29/29: allowlisted destinations sign; third-party, sibling-subdomain (`search`/`updates`), lookalike, `http`/`chrome`/`echo`, non-default port, userinfo, and IP-literal destinations return `disallowed_destination`; missing/bad method, bad timestamp shape, unknown field, bad nonce/token-hash return `invalid_payload`. |
+
+Known limitations:
+
+- No local pinned Chromium source checkout or Windows build exists here (per
+  T03), so application was validated via `patch -p1` against a reconstructed
+  post-`echothink/0024` tree and via a faithful logic mirror, not a real browser
+  build. Runtime signing smoke (real device key + extension call) is deferred to
+  T33/T34/T35.
+- Active Echothink patch count is now `18`. T33's last missing required Alpha
+  artifact (`patches/echothink/0008-request-proof-helper.patch`) now exists;
+  T33-T37 remain owned by their tasks and still require a real build pass.
+- Replay protection, header acceptance, device revocation, and protected-resource
+  authorization remain backend/gateway responsibilities.
 
 ## T37 Notes
 
