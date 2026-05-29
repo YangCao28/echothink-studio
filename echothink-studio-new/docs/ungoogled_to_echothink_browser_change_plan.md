@@ -339,6 +339,13 @@ shell. It supports only `chat` and `workspace_context`, stores the selected
 mode in profile-local `chrome.storage.local` under
 `echothink.sidePanel.mode`, and switches modes without browser restart.
 
+T16 implements the Chat Panel shell in that same bundled extension. Chat mode
+renders an in-memory transcript and composer, exposes the Alpha scope selector,
+posts to `https://api.echothink.ai/v1/chat/stream` with selected
+`scope_type` metadata, and streams assistant response text when the endpoint
+supports it. Conversation persistence, model orchestration, request-proof
+signing, and private key handling remain outside this task.
+
 Acceptance:
 
 - Extension is installed by default with the browser.
@@ -357,7 +364,8 @@ Mode selector:
 - Does not require a browser restart.
 
 Alpha implementation details are recorded in
-`docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`.
+`docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md` and
+`docs/echothink-browser-alpha/t16-implement-chat-panel-shell.md`.
 
 Mode 1: Chat Panel
 

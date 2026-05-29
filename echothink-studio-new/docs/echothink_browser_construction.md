@@ -251,6 +251,12 @@ The Side Panel mode selector is documented in
 `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`; it
 uses local extension storage to persist exactly `chat` or
 `workspace_context` per profile.
+The Chat Panel shell is documented in
+`docs/echothink-browser-alpha/t16-implement-chat-panel-shell.md`; it keeps the
+chat UI in the bundled extension, posts to
+`https://api.echothink.ai/v1/chat/stream`, includes the selected Alpha
+`scope_type` in request metadata, and streams response text when the remote
+endpoint provides a readable stream.
 
 The Side Panel should provide two switchable modes. The mode selector should be
 visible at the top of the panel and preserve the user's last selected mode per

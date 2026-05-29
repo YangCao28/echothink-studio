@@ -1,0 +1,616 @@
+# Echothink-Patch: 0016-chat-panel-shell
+# Title: Add the Echothink Side Panel Chat shell with scope metadata
+# Area: extension
+# Depends-On: echothink/0004-bundled-workspace-extension.patch, echothink/0014-side-panel-container.patch, echothink/0015-side-panel-mode-selector.patch
+# Browser-Layer-Reason: The bundled Side Panel needs a browser-local Chat UI shell that can send the user's selected Alpha scope metadata to the protected Echothink chat gateway. Keeping this in the MV3 extension avoids native Chromium UI rewrites and keeps conversation persistence/model orchestration outside the browser.
+# Preferred-Surface-Checked: extension (local sidepanel.html/sidepanel.css/sidepanel.js UI and fetch to the existing Echothink API host permission)
+# Security-Critical-Areas: none
+# Native-Files-Touched: chrome/browser/resources/echothink_workspace/sidepanel.html, chrome/browser/resources/echothink_workspace/sidepanel.css, chrome/browser/resources/echothink_workspace/sidepanel.js
+# Rebase-Risk: low (updates only bundled extension resource files added by echothink/0004)
+# Validation: Apply inherited patches, then echothink/0001..0005 and later tail patches including echothink/0014, echothink/0015, and this patch with `patch -p1` against pinned Chromium 148.0.7778.178; launch a fresh profile, open Chat mode, verify the scope selector is visible, submit a message against a test chat endpoint, and verify the JSON body includes `scope.scope_type`.
+#
+# Notes:
+# - Chat requests use `POST https://api.echothink.ai/v1/chat/stream` with
+#   `credentials: "include"` and selected scope metadata in the JSON body.
+# - The UI never reads, renders, or logs private key material, access tokens, or
+#   proof internals. Request proof integration remains a later task.
+# - Conversation persistence and model orchestration remain remote. The browser
+#   keeps only the current in-memory panel transcript.
+
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.css
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.css
+@@ -104,6 +104,10 @@ textarea {
+   display: none;
+ }
+ 
++.chat-panel {
++  min-height: 0;
++}
++
+ .field-label {
+   color: #40505a;
+   font-size: 12px;
+@@ -136,24 +140,78 @@ textarea:focus {
+   outline: 2px solid rgba(18, 142, 161, 0.18);
+ }
+ 
+-.empty-state {
++.scope-row {
+   display: grid;
+-  gap: 4px;
+-  padding: 14px;
++  gap: 6px;
++}
++
++.scope-summary {
++  margin: -2px 0 0;
++  color: #62717d;
++  font-size: 12px;
++}
++
++.chat-transcript {
++  display: grid;
++  min-height: 160px;
++  max-height: 42vh;
++  align-content: start;
++  gap: 10px;
++  overflow-y: auto;
++  padding: 12px;
+   border: 1px solid #d9e2e7;
+   border-radius: 8px;
+   background: #ffffff;
++  list-style: none;
++  margin: 0;
++}
++
++.chat-empty-state {
++  color: #62717d;
++  font-size: 13px;
++}
++
++.chat-message {
++  display: grid;
++  gap: 4px;
++  max-width: 92%;
+ }
+ 
+-.empty-state strong {
++.chat-message strong {
+   font-size: 13px;
+ }
+ 
+-.empty-state span {
++.chat-message p {
++  margin: 0;
++  overflow-wrap: anywhere;
++  white-space: pre-wrap;
++}
++
++.chat-message.is-user {
++  justify-self: end;
++  padding: 8px 10px;
++  border-radius: 8px;
++  background: #e8f6f8;
++}
++
++.chat-message.is-assistant {
++  justify-self: start;
++  padding: 8px 10px;
++  border: 1px solid #d9e2e7;
++  border-radius: 8px;
++  background: #f8fafb;
++}
++
++.chat-status {
++  min-height: 18px;
+   color: #62717d;
+   font-size: 12px;
+ }
+ 
++.chat-status.is-error {
++  color: #9d2d20;
++}
++
+ .composer {
+   display: grid;
+   gap: 8px;
+@@ -175,6 +233,10 @@ textarea:disabled {
+   opacity: 0.55;
+ }
+ 
++.composer button:not(:disabled) {
++  cursor: pointer;
++}
++
+ .context-list {
+   display: grid;
+   gap: 8px;
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.html
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.html
+@@ -39,26 +39,32 @@
+         </button>
+       </nav>
+ 
+-      <section class="panel-region" id="chat-panel" data-panel="chat" role="tabpanel">
+-        <label class="field-label" for="scope-select">Scope</label>
+-        <select id="scope-select" name="scope">
+-          <option value="current_page">Current page</option>
+-          <option value="project">Current project</option>
+-          <option value="app_domain">Current App Domain</option>
+-          <option value="task_wave">Current Task Wave</option>
+-          <option value="artifacts">Recent artifacts</option>
+-          <option value="organization">Organization workspace</option>
+-        </select>
+-
+-        <div class="empty-state" role="status">
+-          <strong>Signed out</strong>
+-          <span>Open Echothink to continue.</span>
++      <section class="panel-region chat-panel" id="chat-panel" data-panel="chat" role="tabpanel">
++        <div class="scope-row">
++          <label class="field-label" for="scope-select">Scope</label>
++          <select id="scope-select" name="scope" aria-describedby="scope-summary">
++            <option value="current_page">Current page</option>
++            <option value="project">Current project</option>
++            <option value="app_domain">Current App Domain</option>
++            <option value="task_wave">Current Task Wave</option>
++            <option value="artifacts">Recent artifacts</option>
++            <option value="organization">Organization workspace</option>
++          </select>
++          <p class="scope-summary" id="scope-summary">Current page</p>
+         </div>
+ 
+-        <form class="composer">
++        <ol class="chat-transcript" id="chat-transcript" aria-label="Chat transcript" aria-live="polite">
++          <li class="chat-empty-state" id="chat-empty-state" role="status">
++            No messages yet.
++          </li>
++        </ol>
++
++        <div class="chat-status" id="chat-status" role="status" aria-live="polite"></div>
++
++        <form class="composer" id="chat-composer">
+           <label class="field-label" for="message-input">Message</label>
+-          <textarea id="message-input" name="message" rows="4" placeholder="Message Echothink" disabled></textarea>
+-          <button type="submit" disabled>Send</button>
++          <textarea id="message-input" name="message" rows="4" placeholder="Message Echothink" required></textarea>
++          <button id="send-button" type="submit" disabled>Send</button>
+         </form>
+       </section>
+ 
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.js
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.js
+@@ -1,16 +1,48 @@
+ const SIDE_PANEL_MODE_STORAGE_KEY = "echothink.sidePanel.mode";
+ const ALPHA_MODES = Object.freeze(["chat", "workspace_context"]);
+ const DEFAULT_MODE = "chat";
++const CHAT_STREAM_ENDPOINT = "https://api.echothink.ai/v1/chat/stream";
++const CHAT_CLIENT = Object.freeze({
++  source: "echothink_browser_side_panel",
++  version: "0.1.0",
++});
++const STREAM_DONE = Symbol("stream_done");
++const CHAT_SCOPE_LABELS = Object.freeze({
++  current_page: "Current page",
++  project: "Current project",
++  app_domain: "Current App Domain",
++  task_wave: "Current Task Wave",
++  artifacts: "Recent artifacts",
++  organization: "Organization workspace",
++});
+ 
+ const modeButtons = document.querySelectorAll("[data-mode]");
+ const panels = document.querySelectorAll("[data-panel]");
+ const activeTabLabel = document.querySelector("#active-tab-label");
++const scopeSelect = document.querySelector("#scope-select");
++const scopeSummary = document.querySelector("#scope-summary");
++const chatTranscript = document.querySelector("#chat-transcript");
++const chatEmptyState = document.querySelector("#chat-empty-state");
++const chatStatus = document.querySelector("#chat-status");
++const chatComposer = document.querySelector("#chat-composer");
++const messageInput = document.querySelector("#message-input");
++const sendButton = document.querySelector("#send-button");
+ let hasUserSelectedMode = false;
++let isSendingChatMessage = false;
++let currentActiveTab;
+ 
+ function isSupportedMode(mode) {
+   return ALPHA_MODES.includes(mode);
+ }
+ 
++function isSupportedScope(scopeType) {
++  return Object.hasOwn(CHAT_SCOPE_LABELS, scopeType);
++}
++
++function getSelectedScopeType() {
++  return isSupportedScope(scopeSelect?.value) ? scopeSelect.value : "current_page";
++}
++
+ function setMode(mode) {
+   const nextMode = isSupportedMode(mode) ? mode : DEFAULT_MODE;
+ 
+@@ -27,6 +59,338 @@ function setMode(mode) {
+   return nextMode;
+ }
+ 
++function setChatStatus(message, options = {}) {
++  if (!chatStatus) {
++    return;
++  }
++
++  chatStatus.textContent = message;
++  chatStatus.classList.toggle("is-error", options.kind === "error");
++}
++
++function updateSendButtonState() {
++  if (!sendButton || !messageInput) {
++    return;
++  }
++
++  sendButton.disabled = isSendingChatMessage || messageInput.value.trim() === "";
++}
++
++function sanitizePageUrl(url) {
++  if (!url) {
++    return undefined;
++  }
++
++  try {
++    const parsedUrl = new URL(url);
++    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
++      return undefined;
++    }
++
++    return parsedUrl.href;
++  } catch {
++    return undefined;
++  }
++}
++
++function buildScopeMetadata(scopeType, tab) {
++  const selectedScopeType = isSupportedScope(scopeType) ? scopeType : "current_page";
++  const metadata = {
++    scope_type: selectedScopeType,
++  };
++
++  if (selectedScopeType === "current_page") {
++    const pageUrl = sanitizePageUrl(tab?.url);
++    if (pageUrl) {
++      metadata.page_url = pageUrl;
++    }
++  }
++
++  return metadata;
++}
++
++function buildChatRequest(message, tab) {
++  return {
++    message,
++    scope: buildScopeMetadata(getSelectedScopeType(), tab),
++    client: CHAT_CLIENT,
++    stream: true,
++  };
++}
++
++function appendChatMessage(role, text = "") {
++  if (!chatTranscript) {
++    return undefined;
++  }
++
++  chatEmptyState?.remove();
++
++  const messageItem = document.createElement("li");
++  const roleLabel = document.createElement("strong");
++  const body = document.createElement("p");
++
++  messageItem.className = `chat-message is-${role}`;
++  roleLabel.textContent = role === "user" ? "You" : "Echothink";
++  body.textContent = text;
++
++  messageItem.append(roleLabel, body);
++  chatTranscript.append(messageItem);
++  chatTranscript.scrollTop = chatTranscript.scrollHeight;
++
++  return body;
++}
++
++function appendToMessage(messageBody, text) {
++  if (!messageBody || !text) {
++    return;
++  }
++
++  messageBody.textContent += text;
++  chatTranscript.scrollTop = chatTranscript.scrollHeight;
++}
++
++function extractTextFromJson(value) {
++  if (!value || typeof value !== "object") {
++    return "";
++  }
++
++  return (
++    value.delta ??
++    value.text ??
++    value.content ??
++    value.message?.content ??
++    value.choices?.[0]?.delta?.content ??
++    value.choices?.[0]?.message?.content ??
++    ""
++  );
++}
++
++function extractStreamText(line) {
++  const trimmedLine = line.trim();
++  if (!trimmedLine || trimmedLine.startsWith(":")) {
++    return "";
++  }
++
++  if (
++    trimmedLine.startsWith("event:") ||
++    trimmedLine.startsWith("id:") ||
++    trimmedLine.startsWith("retry:")
++  ) {
++    return "";
++  }
++
++  const payload = trimmedLine.startsWith("data:")
++    ? trimmedLine.slice("data:".length).trim()
++    : trimmedLine;
++
++  if (!payload || payload === "[DONE]") {
++    return payload === "[DONE]" ? STREAM_DONE : "";
++  }
++
++  try {
++    return extractTextFromJson(JSON.parse(payload));
++  } catch {
++    return payload;
++  }
++}
++
++function renderFinalChatPayload(value, messageBody) {
++  const responseText =
++    extractTextFromJson(value) || (typeof value === "string" ? value : "");
++  messageBody.textContent = responseText || "No response content.";
++}
++
++async function renderBufferedChatResponse(response, messageBody) {
++  const contentType = response.headers.get("content-type") || "";
++
++  if (contentType.includes("application/json")) {
++    renderFinalChatPayload(await response.json(), messageBody);
++    return;
++  }
++
++  renderFinalChatPayload(await response.text(), messageBody);
++}
++
++async function renderStreamingChatResponse(response, messageBody) {
++  const reader = response.body.getReader();
++  const decoder = new TextDecoder();
++  let buffer = "";
++  let receivedText = false;
++  let isDone = false;
++
++  while (!isDone) {
++    const { value, done } = await reader.read();
++    if (done) {
++      break;
++    }
++
++    buffer += decoder.decode(value, { stream: true });
++    const lines = buffer.split(/\r?\n/);
++    buffer = lines.pop() || "";
++
++    for (const line of lines) {
++      const text = extractStreamText(line);
++      if (text === STREAM_DONE) {
++        isDone = true;
++        break;
++      }
++
++      if (text) {
++        receivedText = true;
++        appendToMessage(messageBody, text);
++      }
++    }
++  }
++
++  const finalText = extractStreamText(buffer);
++  if (finalText && finalText !== STREAM_DONE) {
++    receivedText = true;
++    appendToMessage(messageBody, finalText);
++  }
++
++  if (!receivedText) {
++    messageBody.textContent = "No response content.";
++  }
++}
++
++async function renderRawStreamingChatResponse(response, messageBody) {
++  const reader = response.body.getReader();
++  const decoder = new TextDecoder();
++  let receivedText = false;
++
++  while (true) {
++    const { value, done } = await reader.read();
++    if (done) {
++      break;
++    }
++
++    const text = decoder.decode(value, { stream: true });
++    if (text) {
++      receivedText = true;
++      appendToMessage(messageBody, text);
++    }
++  }
++
++  const finalText = decoder.decode();
++  if (finalText) {
++    receivedText = true;
++    appendToMessage(messageBody, finalText);
++  }
++
++  if (!receivedText) {
++    messageBody.textContent = "No response content.";
++  }
++}
++
++async function renderChatResponse(response, messageBody) {
++  const contentType = response.headers.get("content-type") || "";
++  const hasReadableStream = Boolean(response.body);
++
++  if (!hasReadableStream) {
++    await renderBufferedChatResponse(response, messageBody);
++    return;
++  }
++
++  if (
++    contentType.includes("text/event-stream") ||
++    contentType.includes("application/x-ndjson")
++  ) {
++    await renderStreamingChatResponse(response, messageBody);
++    return;
++  }
++
++  if (contentType.includes("text/plain")) {
++    await renderRawStreamingChatResponse(response, messageBody);
++    return;
++  }
++
++  await renderBufferedChatResponse(response, messageBody);
++}
++
++function getChatErrorMessage(response) {
++  if (response.status === 401) {
++    return "Sign in required.";
++  }
++
++  if (response.status === 403) {
++    return "Scope not authorized.";
++  }
++
++  return "Chat service error.";
++}
++
++async function getActiveTab() {
++  if (!globalThis.chrome?.tabs?.query) {
++    return undefined;
++  }
++
++  const [tab] = await globalThis.chrome.tabs.query({
++    active: true,
++    currentWindow: true,
++  });
++
++  return tab;
++}
++
++async function submitChatMessage(message) {
++  if (isSendingChatMessage) {
++    return;
++  }
++
++  isSendingChatMessage = true;
++  updateSendButtonState();
++  setChatStatus("Sending...");
++
++  const tab = currentActiveTab || (await getActiveTab());
++  const requestPayload = buildChatRequest(message, tab);
++  appendChatMessage("user", message);
++  const assistantMessage = appendChatMessage("assistant");
++
++  try {
++    const response = await fetch(CHAT_STREAM_ENDPOINT, {
++      method: "POST",
++      credentials: "include",
++      headers: {
++        "Content-Type": "application/json",
++        Accept: "text/event-stream, application/x-ndjson, application/json, text/plain",
++      },
++      body: JSON.stringify(requestPayload),
++    });
++
++    if (!response.ok) {
++      assistantMessage.textContent = getChatErrorMessage(response);
++      setChatStatus(getChatErrorMessage(response), { kind: "error" });
++      return;
++    }
++
++    await renderChatResponse(response, assistantMessage);
++    setChatStatus("");
++  } catch (error) {
++    assistantMessage.textContent = navigator.onLine
++      ? "Unable to reach chat service."
++      : "Offline.";
++    setChatStatus(assistantMessage.textContent, { kind: "error" });
++    console.warn("Unable to send chat message", error);
++  } finally {
++    isSendingChatMessage = false;
++    messageInput.value = "";
++    updateSendButtonState();
++    messageInput.focus();
++  }
++}
++
++function updateScopeSummary() {
++  if (!scopeSummary) {
++    return;
++  }
++
++  const scopeType = getSelectedScopeType();
++  const label = CHAT_SCOPE_LABELS[scopeType] || CHAT_SCOPE_LABELS.current_page;
++  const pageUrl = buildScopeMetadata(scopeType, currentActiveTab).page_url;
++  scopeSummary.textContent =
++    scopeType === "current_page" && pageUrl ? new URL(pageUrl).hostname : label;
++}
++
+ async function readStoredMode() {
+   if (!globalThis.chrome?.storage?.local?.get) {
+     return DEFAULT_MODE;
+@@ -72,9 +436,12 @@ async function updateActiveTabLabel() {
+   }
+ 
+   try {
++    currentActiveTab = tab;
+     activeTabLabel.textContent = new URL(tab.url).hostname || "Current page";
++    updateScopeSummary();
+   } catch {
+     activeTabLabel.textContent = "Current page";
++    updateScopeSummary();
+   }
+ }
+ 
+@@ -88,15 +455,32 @@ modeButtons.forEach((button) => {
+   });
+ });
+ 
+-document.querySelector(".composer")?.addEventListener("submit", (event) => {
++chatComposer?.addEventListener("submit", (event) => {
+   event.preventDefault();
++  const message = messageInput?.value.trim();
++  if (message) {
++    submitChatMessage(message).catch((error) => {
++      setChatStatus("Chat service error.", { kind: "error" });
++      console.warn("Unable to submit chat message", error);
++    });
++  }
++});
++
++messageInput?.addEventListener("input", updateSendButtonState);
++
++scopeSelect?.addEventListener("change", () => {
++  updateScopeSummary();
+ });
+ 
+ updateActiveTabLabel().catch((error) => {
+   console.warn("Unable to read active tab", error);
++  updateScopeSummary();
+ });
+ 
+ initializeMode().catch((error) => {
+   console.warn("Unable to read side panel mode", error);
+   setMode(DEFAULT_MODE);
+ });
++
++updateScopeSummary();
++updateSendButtonState();

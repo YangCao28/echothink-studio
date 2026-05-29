@@ -39,26 +39,32 @@
         </button>
       </nav>
 
-      <section class="panel-region" id="chat-panel" data-panel="chat" role="tabpanel">
-        <label class="field-label" for="scope-select">Scope</label>
-        <select id="scope-select" name="scope">
-          <option value="current_page">Current page</option>
-          <option value="project">Current project</option>
-          <option value="app_domain">Current App Domain</option>
-          <option value="task_wave">Current Task Wave</option>
-          <option value="artifacts">Recent artifacts</option>
-          <option value="organization">Organization workspace</option>
-        </select>
-
-        <div class="empty-state" role="status">
-          <strong>Signed out</strong>
-          <span>Open Echothink to continue.</span>
+      <section class="panel-region chat-panel" id="chat-panel" data-panel="chat" role="tabpanel">
+        <div class="scope-row">
+          <label class="field-label" for="scope-select">Scope</label>
+          <select id="scope-select" name="scope" aria-describedby="scope-summary">
+            <option value="current_page">Current page</option>
+            <option value="project">Current project</option>
+            <option value="app_domain">Current App Domain</option>
+            <option value="task_wave">Current Task Wave</option>
+            <option value="artifacts">Recent artifacts</option>
+            <option value="organization">Organization workspace</option>
+          </select>
+          <p class="scope-summary" id="scope-summary">Current page</p>
         </div>
 
-        <form class="composer">
+        <ol class="chat-transcript" id="chat-transcript" aria-label="Chat transcript" aria-live="polite">
+          <li class="chat-empty-state" id="chat-empty-state" role="status">
+            No messages yet.
+          </li>
+        </ol>
+
+        <div class="chat-status" id="chat-status" role="status" aria-live="polite"></div>
+
+        <form class="composer" id="chat-composer">
           <label class="field-label" for="message-input">Message</label>
-          <textarea id="message-input" name="message" rows="4" placeholder="Message Echothink" disabled></textarea>
-          <button type="submit" disabled>Send</button>
+          <textarea id="message-input" name="message" rows="4" placeholder="Message Echothink" required></textarea>
+          <button id="send-button" type="submit" disabled>Send</button>
         </form>
       </section>
 
