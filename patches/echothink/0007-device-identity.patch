@@ -1,0 +1,651 @@
+# Echothink-Patch: 0007-device-identity
+# Title: Generate and persist a DPAPI-backed local device identity
+# Area: device-identity
+# Depends-On: echothink/0006-login-gate.patch (T21 registers and consumes the non-secret readiness prefs this reset path clears)
+# Spec-Depends-On: docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md
+# Browser-Layer-Reason: The browser owns the local device private-key trust boundary. Key generation, DPAPI protection, restart loading, and reset must happen in native browser code so private key material never enters web pages or extension JavaScript; backend services still own enrollment binding, revocation, proof validation, and authorization.
+# Preferred-Surface-Checked: preference, extension, native-required (Local State/profile prefs are used only for non-secret metadata; the bundled extension bridge is deferred to T24; private-key generation and DPAPI storage require a browser-owned native component)
+# Security-Critical-Areas: none (no network stack, TLS validation, sandbox, renderer internals, downloads, history, bookmarks, password manager, cookies, or DevTools changes)
+# Native-Files-Touched: chrome/browser/BUILD.gn, chrome/browser/chrome_browser_main.cc, chrome/browser/chrome_content_browser_client.cc, chrome/browser/echothink/device_identity/device_identity_service.h (new), chrome/browser/echothink/device_identity/device_identity_service.cc (new)
+# Rebase-Risk: medium (adds a small browser component, pref registration calls, and a startup ensure call near existing Local State initialization)
+# Validation: Apply inherited patches and active Echothink predecessors through echothink/0006-login-gate.patch, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178. Build on Windows and verify with a fresh user data dir: (1) startup creates User Data/Echothink Device Identity/device_key.dpapi; (2) Local State has non-secret installation_id, key_id, ES256 public_key_jwk, key_created_at, key_storage, browser channel/version; (3) restart preserves key_id and installation_id; (4) the protected key file decrypts only through current-user DPAPI in browser code; (5) calling ResetLocalEnrollmentState deletes the protected key file, rotates installation_id, clears profile enrollment/readiness prefs, and re-enables the login gate.
+#
+# Notes:
+# - The private key is generated as ECDSA P-256, serialized as PKCS#8 bytes only
+#   inside the browser process, protected with CryptProtectData using current-user
+#   DPAPI and CRYPTPROTECT_UI_FORBIDDEN, then written as a base64 DPAPI envelope
+#   to the user-data-dir file. The private key bytes and DPAPI blob are not stored
+#   in prefs, extension storage, web storage, logs, docs examples, or progress
+#   notes.
+# - Local State stores only non-secret metadata: installation_id, key_id,
+#   key_algorithm, public_key_jwk, key_created_at, key_storage, browser_channel,
+#   and browser_version. Profile prefs store only enrollment status metadata and
+#   the T20/T21 readiness booleans/timestamps.
+# - If a protected key file exists but cannot be unprotected or parsed, this patch
+#   does not silently generate a replacement key. A future bridge/UI path can call
+#   ResetLocalEnrollmentState explicitly to remove local enrollment state and
+#   generate a new unenrolled identity on the next ensure path.
+# - T24 owns exposing a narrow extension bridge. This patch exports native helper
+#   functions for status/reset/key loading boundaries but does not expose private
+#   key material or DPAPI blobs to JavaScript.
+
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -77,6 +77,7 @@ if (is_win) {
+   config("browser_win_linker_flags") {
+     libs = [
+       "credui.lib",
++      "crypt32.lib",  # Echothink device identity DPAPI storage.
+       "cryptui.lib",
+       "dwmapi.lib",
+       "imm32.lib",  # chrome_elf_init.cc
+@@ -577,6 +578,8 @@ source_set("core") {
+     "chrome_content_browser_client_navigation_throttles.cc",
+     "chrome_content_browser_client_navigation_throttles.h",
+     "chrome_content_browser_client_receiver_bindings.cc",
++    "echothink/device_identity/device_identity_service.cc",
++    "echothink/device_identity/device_identity_service.h",
+     "chrome_resource_bundle_helper.cc",
+     "chrome_resource_bundle_helper.h",
+     "expired_flags_list.h",
+--- /dev/null
++++ b/chrome/browser/echothink/device_identity/device_identity_service.h
+@@ -0,0 +1,104 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_ECHOTHINK_DEVICE_IDENTITY_DEVICE_IDENTITY_SERVICE_H_
++#define CHROME_BROWSER_ECHOTHINK_DEVICE_IDENTITY_DEVICE_IDENTITY_SERVICE_H_
++
++#include "base/files/file_path.h"
++
++class PrefRegistrySimple;
++class PrefService;
++
++namespace user_prefs {
++class PrefRegistrySyncable;
++}  // namespace user_prefs
++
++namespace echothink::device_identity {
++
++inline constexpr char kDeviceInstallationIdPref[] =
++    "echothink.device.installation_id";
++inline constexpr char kDeviceKeyIdPref[] = "echothink.device.key_id";
++inline constexpr char kDeviceKeyAlgorithmPref[] =
++    "echothink.device.key_algorithm";
++inline constexpr char kDevicePublicKeyJwkPref[] =
++    "echothink.device.public_key_jwk";
++inline constexpr char kDeviceKeyCreatedAtPref[] =
++    "echothink.device.key_created_at";
++inline constexpr char kDeviceKeyStoragePref[] = "echothink.device.key_storage";
++inline constexpr char kDeviceBrowserChannelPref[] =
++    "echothink.device.browser_channel";
++inline constexpr char kDeviceBrowserVersionPref[] =
++    "echothink.device.browser_version";
++
++inline constexpr char kProfileDeviceIdPref[] = "echothink.device.device_id";
++inline constexpr char kProfileEnrollmentStatusPref[] =
++    "echothink.device.enrollment_status";
++inline constexpr char kProfileEnrolledAtPref[] =
++    "echothink.device.enrolled_at";
++inline constexpr char kProfileLastVerifiedAtPref[] =
++    "echothink.device.last_verified_at";
++inline constexpr char kProfileRevokedAtPref[] =
++    "echothink.device.revoked_at";
++inline constexpr char kProfileLastErrorPref[] =
++    "echothink.device.last_error";
++
++inline constexpr char kAuthSessionReadyPref[] =
++    "echothink.auth.session_ready";
++inline constexpr char kDeviceEnrolledPref[] = "echothink.device.enrolled";
++inline constexpr char kDeviceVerifiedPref[] = "echothink.device.verified";
++inline constexpr char kSetupCompletePref[] = "echothink.setup.complete";
++inline constexpr char kSetupCompletedAtPref[] =
++    "echothink.setup.completed_at";
++inline constexpr char kSetupLastBlockedAtPref[] =
++    "echothink.setup.last_blocked_at";
++inline constexpr char kSetupLastBlockedSchemePref[] =
++    "echothink.setup.last_blocked_scheme";
++
++inline constexpr char kDeviceKeyAlgorithm[] = "ES256";
++inline constexpr char kDeviceKeyStorage[] = "windows_dpapi_current_user_v1";
++
++enum class EnsureDeviceIdentityResult {
++  kReady,
++  kGenerated,
++  kUnsupportedPlatform,
++  kStorageError,
++  kInvalidProtectedKey,
++};
++
++// Registers browser-wide non-secret installation/key metadata in Local State.
++void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
++
++// Registers per-profile non-secret enrollment metadata. The login-gate
++// readiness prefs are registered by echothink/0006-login-gate.patch; the reset
++// helper below clears them by key when they are present.
++void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
++
++// Ensures the user data directory has a local device identity. On Windows this
++// creates or reloads an ECDSA P-256 key protected by current-user DPAPI and
++// refreshes non-secret metadata in Local State. On non-Windows platforms this
++// returns kUnsupportedPlatform and does not create key material.
++EnsureDeviceIdentityResult EnsureDeviceIdentity(
++    PrefService* local_state,
++    const base::FilePath& user_data_dir);
++
++// Returns true when the DPAPI envelope file exists. This does not expose or
++// decrypt private key material.
++bool HasProtectedDeviceKey(PrefService* local_state,
++                           const base::FilePath& user_data_dir);
++
++// Deletes the local protected key file, clears non-secret key/enrollment
++// metadata, rotates installation_id, and clears the T20/T21 login-gate
++// readiness prefs for the supplied profile.
++bool ResetLocalEnrollmentState(PrefService* local_state,
++                               PrefService* profile_prefs,
++                               const base::FilePath& user_data_dir);
++
++base::FilePath GetDeviceIdentityDirectoryForUserDataDir(
++    const base::FilePath& user_data_dir);
++base::FilePath GetProtectedKeyFilePathForUserDataDir(
++    const base::FilePath& user_data_dir);
++
++}  // namespace echothink::device_identity
++
++#endif  // CHROME_BROWSER_ECHOTHINK_DEVICE_IDENTITY_DEVICE_IDENTITY_SERVICE_H_
+--- /dev/null
++++ b/chrome/browser/echothink/device_identity/device_identity_service.cc
+@@ -0,0 +1,440 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/echothink/device_identity/device_identity_service.h"
++
++#include <algorithm>
++#include <array>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "base/base64.h"
++#include "base/base64url.h"
++#include "base/files/file_util.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/numerics/safe_conversions.h"
++#include "base/strings/stringprintf.h"
++#include "base/time/time.h"
++#include "base/uuid.h"
++#include "base/values.h"
++#include "build/build_config.h"
++#include "chrome/common/channel_info.h"
++#include "components/prefs/pref_registry_simple.h"
++#include "components/pref_registry/pref_registry_syncable.h"
++#include "components/prefs/pref_service.h"
++#include "components/version_info/version_info.h"
++#include "crypto/keypair.h"
++#include "crypto/sha2.h"
++
++#if BUILDFLAG(IS_WIN)
++#include <windows.h>
++
++#include "base/win/wincrypt_shim.h"
++#endif
++
++namespace echothink::device_identity {
++namespace {
++
++constexpr int kProtectedKeySchemaVersion = 1;
++constexpr char kIdentityDirectoryName[] = "Echothink Device Identity";
++constexpr char kProtectedKeyFileName[] = "device_key.dpapi";
++constexpr char kEnvelopeSchemaVersion[] = "schema_version";
++constexpr char kEnvelopeStorage[] = "storage";
++constexpr char kEnvelopeKeyAlgorithm[] = "key_algorithm";
++constexpr char kEnvelopeKeyId[] = "key_id";
++constexpr char kEnvelopeProtectedPayload[] = "protected_payload";
++constexpr char kEnrollmentStatusNone[] = "none";
++constexpr char kJwkThumbprintPrefix[] = "jkt:";
++
++// X.509 SubjectPublicKeyInfo prefix for an uncompressed P-256 public key.
++constexpr std::array<uint8_t, 27> kP256SpkiPrefix = {
++    0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48,
++    0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48,
++    0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00, 0x04};
++
++struct PublicKeyMetadata {
++  base::Value::Dict public_jwk;
++  std::string key_id;
++};
++
++std::string_view BytesAsStringView(const uint8_t* data, size_t size) {
++  if (size == 0) {
++    return std::string_view();
++  }
++  return std::string_view(reinterpret_cast<const char*>(data), size);
++}
++
++std::string BytesToBase64(const std::vector<uint8_t>& bytes) {
++  return base::Base64Encode(BytesAsStringView(bytes.data(), bytes.size()));
++}
++
++std::string BytesToBase64Url(std::string_view bytes) {
++  std::string encoded;
++  base::Base64UrlEncode(bytes, base::Base64UrlEncodePolicy::OMIT_PADDING,
++                        &encoded);
++  return encoded;
++}
++
++std::string NowAsIso8601Utc() {
++  base::Time::Exploded exploded;
++  base::Time::Now().UTCExplode(&exploded);
++  return base::StringPrintf("%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
++                            exploded.year, exploded.month,
++                            exploded.day_of_month, exploded.hour,
++                            exploded.minute, exploded.second,
++                            exploded.millisecond);
++}
++
++std::string NewInstallationId() {
++  return base::Uuid::GenerateRandomV4().AsLowercaseString();
++}
++
++std::string CurrentBrowserChannel() {
++  std::string channel(version_info::GetChannelString(chrome::GetChannel()));
++  if (channel.empty() || channel == "unknown") {
++    return "dev";
++  }
++  return channel;
++}
++
++void RefreshBrowserMetadata(PrefService* local_state) {
++  local_state->SetString(kDeviceBrowserChannelPref, CurrentBrowserChannel());
++  local_state->SetString(kDeviceBrowserVersionPref,
++                         version_info::GetVersionNumber());
++}
++
++std::string EnsureInstallationId(PrefService* local_state) {
++  std::string installation_id =
++      local_state->GetString(kDeviceInstallationIdPref);
++  if (installation_id.empty()) {
++    installation_id = NewInstallationId();
++    local_state->SetString(kDeviceInstallationIdPref, installation_id);
++  }
++  return installation_id;
++}
++
++std::optional<PublicKeyMetadata> BuildPublicKeyMetadata(
++    const crypto::keypair::PrivateKey& private_key) {
++  std::vector<uint8_t> spki = private_key.ToSubjectPublicKeyInfo();
++  constexpr size_t kCoordinateLength = 32;
++  constexpr size_t kExpectedLength =
++      kP256SpkiPrefix.size() + (2 * kCoordinateLength);
++  if (spki.size() != kExpectedLength ||
++      !std::equal(kP256SpkiPrefix.begin(), kP256SpkiPrefix.end(),
++                  spki.begin())) {
++    return std::nullopt;
++  }
++
++  const uint8_t* coordinates = spki.data() + kP256SpkiPrefix.size();
++  const std::string x = BytesToBase64Url(
++      BytesAsStringView(coordinates, kCoordinateLength));
++  const std::string y = BytesToBase64Url(
++      BytesAsStringView(coordinates + kCoordinateLength, kCoordinateLength));
++
++  const std::string thumbprint_json = base::StringPrintf(
++      "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"%s\",\"y\":\"%s\"}",
++      x.c_str(), y.c_str());
++  const std::string thumbprint =
++      BytesToBase64Url(crypto::SHA256HashString(thumbprint_json));
++
++  PublicKeyMetadata metadata;
++  metadata.public_jwk.Set("kty", "EC");
++  metadata.public_jwk.Set("crv", "P-256");
++  metadata.public_jwk.Set("x", x);
++  metadata.public_jwk.Set("y", y);
++  metadata.public_jwk.Set("alg", kDeviceKeyAlgorithm);
++  metadata.key_id = std::string(kJwkThumbprintPrefix) + thumbprint;
++  return metadata;
++}
++
++bool ProtectPrivateKey(const std::vector<uint8_t>& private_key_info,
++                       std::vector<uint8_t>* protected_payload) {
++#if BUILDFLAG(IS_WIN)
++  DATA_BLOB input;
++  input.pbData = const_cast<BYTE*>(
++      reinterpret_cast<const BYTE*>(private_key_info.data()));
++  input.cbData = base::checked_cast<DWORD>(private_key_info.size());
++
++  DATA_BLOB output;
++  BOOL result = CryptProtectData(&input, L"Echothink Device Identity", nullptr,
++                                 nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN,
++                                 &output);
++  if (!result) {
++    return false;
++  }
++
++  protected_payload->assign(output.pbData, output.pbData + output.cbData);
++  LocalFree(output.pbData);
++  return true;
++#else
++  return false;
++#endif
++}
++
++bool UnprotectPrivateKey(const std::vector<uint8_t>& protected_payload,
++                         std::vector<uint8_t>* private_key_info) {
++#if BUILDFLAG(IS_WIN)
++  DATA_BLOB input;
++  input.pbData =
++      const_cast<BYTE*>(reinterpret_cast<const BYTE*>(protected_payload.data()));
++  input.cbData = base::checked_cast<DWORD>(protected_payload.size());
++
++  DATA_BLOB output;
++  BOOL result =
++      CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr,
++                         CRYPTPROTECT_UI_FORBIDDEN, &output);
++  if (!result) {
++    return false;
++  }
++
++  private_key_info->assign(output.pbData, output.pbData + output.cbData);
++  LocalFree(output.pbData);
++  return true;
++#else
++  return false;
++#endif
++}
++
++bool WriteProtectedKeyEnvelope(const base::FilePath& key_path,
++                               const std::string& key_id,
++                               const std::vector<uint8_t>& private_key_info) {
++  std::vector<uint8_t> protected_payload;
++  if (!ProtectPrivateKey(private_key_info, &protected_payload)) {
++    return false;
++  }
++
++  base::Value::Dict envelope;
++  envelope.Set(kEnvelopeSchemaVersion, kProtectedKeySchemaVersion);
++  envelope.Set(kEnvelopeStorage, kDeviceKeyStorage);
++  envelope.Set(kEnvelopeKeyAlgorithm, kDeviceKeyAlgorithm);
++  envelope.Set(kEnvelopeKeyId, key_id);
++  envelope.Set(kEnvelopeProtectedPayload, BytesToBase64(protected_payload));
++
++  std::string json;
++  if (!base::JSONWriter::Write(envelope, &json) ||
++      !base::CreateDirectory(key_path.DirName())) {
++    return false;
++  }
++  return base::WriteFile(key_path, json);
++}
++
++std::optional<crypto::keypair::PrivateKey> ReadProtectedKeyEnvelope(
++    const base::FilePath& key_path) {
++  std::string json;
++  if (!base::ReadFileToString(key_path, &json)) {
++    return std::nullopt;
++  }
++
++  std::optional<base::Value::Dict> envelope = base::JSONReader::ReadDict(json);
++  if (!envelope) {
++    return std::nullopt;
++  }
++
++  std::optional<int> schema_version =
++      envelope->FindInt(kEnvelopeSchemaVersion);
++  const std::string* storage = envelope->FindString(kEnvelopeStorage);
++  const std::string* key_algorithm =
++      envelope->FindString(kEnvelopeKeyAlgorithm);
++  const std::string* protected_payload_base64 =
++      envelope->FindString(kEnvelopeProtectedPayload);
++  if (!schema_version || *schema_version != kProtectedKeySchemaVersion ||
++      !storage || *storage != kDeviceKeyStorage || !key_algorithm ||
++      *key_algorithm != kDeviceKeyAlgorithm || !protected_payload_base64) {
++    return std::nullopt;
++  }
++
++  std::optional<std::vector<uint8_t>> protected_payload =
++      base::Base64Decode(*protected_payload_base64);
++  if (!protected_payload) {
++    return std::nullopt;
++  }
++
++  std::vector<uint8_t> private_key_info;
++  if (!UnprotectPrivateKey(*protected_payload, &private_key_info)) {
++    return std::nullopt;
++  }
++
++  std::optional<crypto::keypair::PrivateKey> private_key =
++      crypto::keypair::PrivateKey::FromPrivateKeyInfo(private_key_info);
++  if (!private_key || !private_key->IsEc()) {
++    return std::nullopt;
++  }
++  return private_key;
++}
++
++void StoreKeyMetadata(PrefService* local_state,
++                      PublicKeyMetadata metadata,
++                      std::string key_created_at) {
++  local_state->SetString(kDeviceKeyIdPref, metadata.key_id);
++  local_state->SetString(kDeviceKeyAlgorithmPref, kDeviceKeyAlgorithm);
++  local_state->Set(kDevicePublicKeyJwkPref,
++                   base::Value(std::move(metadata.public_jwk)));
++  local_state->SetString(kDeviceKeyCreatedAtPref, key_created_at);
++  local_state->SetString(kDeviceKeyStoragePref, kDeviceKeyStorage);
++  RefreshBrowserMetadata(local_state);
++}
++
++void ClearLocalKeyMetadata(PrefService* local_state) {
++  local_state->ClearPref(kDeviceKeyIdPref);
++  local_state->ClearPref(kDeviceKeyAlgorithmPref);
++  local_state->ClearPref(kDevicePublicKeyJwkPref);
++  local_state->ClearPref(kDeviceKeyCreatedAtPref);
++  local_state->ClearPref(kDeviceKeyStoragePref);
++  local_state->ClearPref(kDeviceBrowserChannelPref);
++  local_state->ClearPref(kDeviceBrowserVersionPref);
++}
++
++void ClearStringPrefIfRegistered(PrefService* prefs, const char* pref_name) {
++  if (prefs->FindPreference(pref_name)) {
++    prefs->SetString(pref_name, std::string());
++  }
++}
++
++void ClearBooleanPrefIfRegistered(PrefService* prefs, const char* pref_name) {
++  if (prefs->FindPreference(pref_name)) {
++    prefs->SetBoolean(pref_name, false);
++  }
++}
++
++void ClearProfileEnrollmentPrefs(PrefService* profile_prefs) {
++  if (!profile_prefs) {
++    return;
++  }
++
++  ClearStringPrefIfRegistered(profile_prefs, kProfileDeviceIdPref);
++  if (profile_prefs->FindPreference(kProfileEnrollmentStatusPref)) {
++    profile_prefs->SetString(kProfileEnrollmentStatusPref,
++                             kEnrollmentStatusNone);
++  }
++  ClearStringPrefIfRegistered(profile_prefs, kProfileEnrolledAtPref);
++  ClearStringPrefIfRegistered(profile_prefs, kProfileLastVerifiedAtPref);
++  ClearStringPrefIfRegistered(profile_prefs, kProfileRevokedAtPref);
++  ClearStringPrefIfRegistered(profile_prefs, kProfileLastErrorPref);
++  ClearBooleanPrefIfRegistered(profile_prefs, kAuthSessionReadyPref);
++  ClearBooleanPrefIfRegistered(profile_prefs, kDeviceEnrolledPref);
++  ClearBooleanPrefIfRegistered(profile_prefs, kDeviceVerifiedPref);
++  ClearBooleanPrefIfRegistered(profile_prefs, kSetupCompletePref);
++  ClearStringPrefIfRegistered(profile_prefs, kSetupCompletedAtPref);
++  ClearStringPrefIfRegistered(profile_prefs, kSetupLastBlockedAtPref);
++  ClearStringPrefIfRegistered(profile_prefs, kSetupLastBlockedSchemePref);
++}
++
++}  // namespace
++
++void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
++  registry->RegisterStringPref(kDeviceInstallationIdPref, std::string());
++  registry->RegisterStringPref(kDeviceKeyIdPref, std::string());
++  registry->RegisterStringPref(kDeviceKeyAlgorithmPref, std::string());
++  registry->RegisterDictionaryPref(kDevicePublicKeyJwkPref);
++  registry->RegisterStringPref(kDeviceKeyCreatedAtPref, std::string());
++  registry->RegisterStringPref(kDeviceKeyStoragePref, std::string());
++  registry->RegisterStringPref(kDeviceBrowserChannelPref, std::string());
++  registry->RegisterStringPref(kDeviceBrowserVersionPref, std::string());
++}
++
++void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
++  registry->RegisterStringPref(kProfileDeviceIdPref, std::string());
++  registry->RegisterStringPref(kProfileEnrollmentStatusPref,
++                               kEnrollmentStatusNone);
++  registry->RegisterStringPref(kProfileEnrolledAtPref, std::string());
++  registry->RegisterStringPref(kProfileLastVerifiedAtPref, std::string());
++  registry->RegisterStringPref(kProfileRevokedAtPref, std::string());
++  registry->RegisterStringPref(kProfileLastErrorPref, std::string());
++}
++
++EnsureDeviceIdentityResult EnsureDeviceIdentity(
++    PrefService* local_state,
++    const base::FilePath& user_data_dir) {
++#if !BUILDFLAG(IS_WIN)
++  return EnsureDeviceIdentityResult::kUnsupportedPlatform;
++#else
++  if (!local_state || user_data_dir.empty()) {
++    return EnsureDeviceIdentityResult::kStorageError;
++  }
++
++  EnsureInstallationId(local_state);
++  const base::FilePath key_path =
++      GetProtectedKeyFilePathForUserDataDir(user_data_dir);
++  if (base::PathExists(key_path)) {
++    std::optional<crypto::keypair::PrivateKey> private_key =
++        ReadProtectedKeyEnvelope(key_path);
++    if (!private_key) {
++      return EnsureDeviceIdentityResult::kInvalidProtectedKey;
++    }
++    std::optional<PublicKeyMetadata> metadata =
++        BuildPublicKeyMetadata(*private_key);
++    if (!metadata) {
++      return EnsureDeviceIdentityResult::kInvalidProtectedKey;
++    }
++
++    std::string key_created_at =
++        local_state->GetString(kDeviceKeyCreatedAtPref);
++    if (key_created_at.empty()) {
++      key_created_at = NowAsIso8601Utc();
++    }
++    StoreKeyMetadata(local_state, std::move(*metadata), key_created_at);
++    return EnsureDeviceIdentityResult::kReady;
++  }
++
++  crypto::keypair::PrivateKey private_key =
++      crypto::keypair::PrivateKey::GenerateEcP256();
++  std::optional<PublicKeyMetadata> metadata =
++      BuildPublicKeyMetadata(private_key);
++  if (!metadata) {
++    return EnsureDeviceIdentityResult::kStorageError;
++  }
++
++  const std::vector<uint8_t> private_key_info =
++      private_key.ToPrivateKeyInfo();
++  if (!WriteProtectedKeyEnvelope(key_path, metadata->key_id,
++                                 private_key_info)) {
++    return EnsureDeviceIdentityResult::kStorageError;
++  }
++
++  StoreKeyMetadata(local_state, std::move(*metadata), NowAsIso8601Utc());
++  return EnsureDeviceIdentityResult::kGenerated;
++#endif
++}
++
++bool HasProtectedDeviceKey(PrefService* local_state,
++                           const base::FilePath& user_data_dir) {
++  return local_state && !user_data_dir.empty() &&
++         base::PathExists(GetProtectedKeyFilePathForUserDataDir(user_data_dir));
++}
++
++bool ResetLocalEnrollmentState(PrefService* local_state,
++                               PrefService* profile_prefs,
++                               const base::FilePath& user_data_dir) {
++  if (!local_state || user_data_dir.empty()) {
++    return false;
++  }
++
++  const base::FilePath key_path =
++      GetProtectedKeyFilePathForUserDataDir(user_data_dir);
++  if (base::PathExists(key_path) && !base::DeleteFile(key_path)) {
++    return false;
++  }
++
++  ClearLocalKeyMetadata(local_state);
++  local_state->SetString(kDeviceInstallationIdPref, NewInstallationId());
++  RefreshBrowserMetadata(local_state);
++  ClearProfileEnrollmentPrefs(profile_prefs);
++  return true;
++}
++
++base::FilePath GetDeviceIdentityDirectoryForUserDataDir(
++    const base::FilePath& user_data_dir) {
++  return user_data_dir.AppendASCII(kIdentityDirectoryName);
++}
++
++base::FilePath GetProtectedKeyFilePathForUserDataDir(
++    const base::FilePath& user_data_dir) {
++  return GetDeviceIdentityDirectoryForUserDataDir(user_data_dir)
++      .AppendASCII(kProtectedKeyFileName);
++}
++
++}  // namespace echothink::device_identity
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -41,5 +41,6 @@
+ #include "chrome/browser/chrome_browser_main_extra_parts.h"
+ #include "chrome/browser/component_updater/registration.h"
++#include "chrome/browser/echothink/device_identity/device_identity_service.h"
+ #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
+ #include "chrome/browser/enterprise/chrome_browser_main_extra_parts_enterprise.h"
+ #include "chrome/browser/first_run/bookmark_importer.h"
+@@ -1100,6 +1101,15 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
+ 
+   PrefService* local_state = browser_process_->local_state();
+ 
++#if BUILDFLAG(IS_WIN)
++  // Echothink Browser device identity (T23): create or reload the local
++  // browser-owned device key before profiles and the bundled workspace
++  // extension can need non-secret identity metadata. Private key material stays
++  // in the DPAPI-protected user-data-dir file and is never exposed to prefs or
++  // JavaScript.
++  echothink::device_identity::EnsureDeviceIdentity(local_state, user_data_dir_);
++#endif
++
+ #if BUILDFLAG(IS_CHROMEOS)
+   browser_process_->platform_part()->InitializeCrosSettings();
+   // ChromeOS needs ui::ResourceBundle::InitSharedInstance to be called before
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -88,6 +88,7 @@
+ #include "chrome/browser/devtools/features.h"
+ #include "chrome/browser/download/chrome_download_manager_delegate.h"
+ #include "chrome/browser/download/download_prefs.h"
++#include "chrome/browser/echothink/device_identity/device_identity_service.h"
+ #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
+ #include "chrome/browser/enterprise/reporting/legacy_tech/legacy_tech_service.h"
+ #include "chrome/browser/enterprise/reporting/prefs.h"
+@@ -1531,6 +1532,7 @@ void ChromeContentBrowserClient::RegisterLocalStatePrefs(
+ #if !BUILDFLAG(IS_ANDROID)
+   registry->RegisterBooleanPref(prefs::kOriginKeyedProcessesEnabled, false);
+ #endif  // !BUILDFLAG(IS_ANDROID)
++  echothink::device_identity::RegisterLocalStatePrefs(registry);
+ }
+ 
+ // static
+@@ -1607,6 +1609,7 @@ void ChromeContentBrowserClient::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterBooleanPref(prefs::kDisable3DAPIs, false);
+   registry->RegisterBooleanPref(prefs::kEnableHyperlinkAuditing, false);
++  echothink::device_identity::RegisterProfilePrefs(registry);
+   registry->RegisterBooleanPref(kEchothinkAuthSessionReadyPref, false);
+   registry->RegisterBooleanPref(kEchothinkDeviceEnrolledPref, false);
+   registry->RegisterBooleanPref(kEchothinkDeviceVerifiedPref, false);

@@ -117,6 +117,7 @@ echothink/0004-bundled-workspace-extension.patch
 echothink/0005-default-search-provider.patch
 echothink/0011-first-run-gate-shell.patch
 echothink/0006-login-gate.patch
+echothink/0007-device-identity.patch
 echothink/0009-echo-protocol-router.patch
 echothink/0012-invalid-echo-route-fallback.patch
 echothink/0010-windows-packaging-identity.patch
