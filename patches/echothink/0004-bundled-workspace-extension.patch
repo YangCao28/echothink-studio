@@ -1,0 +1,570 @@
+# Echothink-Patch: 0004-bundled-workspace-extension
+# Title: Bundle the Echothink Workspace component extension
+# Area: extension
+# Depends-On: echothink/0003-new-tab-and-first-run.patch
+# Browser-Layer-Reason: The trusted workspace side panel must be present before any Echothink web service can ask the user to install an extension. Bundling it as a browser component extension gives new profiles the shell by default and keeps replacement/update authority in the browser build rather than a public web-store listing.
+# Preferred-Surface-Checked: extension, native-required (the extension shell is MV3; native patching is limited to Chromium's existing component-extension registration and resource-bundling hooks)
+# Security-Critical-Areas: none
+# Native-Files-Touched: chrome/browser/extensions/component_loader.cc, chrome/browser/extensions/component_extensions_allowlist/allowlist.cc, chrome/browser/resources/component_extension_resources.grd, chrome/browser/resources/echothink_workspace/* (new)
+# Rebase-Risk: medium (component_loader.cc and the component extension resource GRD are active Chromium surfaces; the insertion points are stable default component-extension hooks)
+# Validation: Apply inherited patches, then echothink/0001..0003, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178; build and launch a fresh profile, then verify extension id lokdibgfmiemhdoogailbfpdggndpolk is loaded as a component extension, has no update_url, exposes only the declared MV3 permissions/host permissions, and normal user/Web Store extension installs still use inherited behavior.
+#
+# Notes:
+# - The extension is loaded through ComponentLoader as mojom::ManifestLocation::kComponent.
+#   It has a fixed public key in manifest.json, no update_url, and is allowlisted only
+#   by its derived component extension id (lokdibgfmiemhdoogailbfpdggndpolk). A public
+#   web-store extension cannot silently replace it because the bundled component does
+#   not opt into web-store updates, and another extension cannot claim this id without
+#   the private key corresponding to the manifest key.
+# - This patch does not change the extension permission model. The bundled manifest
+#   declares only sidePanel, storage, tabs, activeTab, and scripting, with host access
+#   restricted to app.echothink.ai, auth.echothink.ai, api.echothink.ai, and
+#   search.echothink.ai. There is no broad host permission, native messaging,
+#   webRequest/declarativeNetRequest, cookies, history, bookmarks, downloads, debugger,
+#   management, or DevTools permission.
+# - The extension shell contains only local side-panel UI, a mode toggle, signed-out
+#   placeholder state, current-tab labeling, and a narrow same-window ping bridge for
+#   app.echothink.ai/auth.echothink.ai. It contains no backend service calls, search
+#   ranking, chat orchestration, workflow orchestration, project/task business logic,
+#   conversation persistence, or device/private-key handling.
+
+--- a/chrome/browser/extensions/component_extensions_allowlist/allowlist.cc
++++ b/chrome/browser/extensions/component_extensions_allowlist/allowlist.cc
+@@ -32,6 +32,7 @@ namespace extensions {
+ bool IsComponentExtensionAllowlisted(const std::string& extension_id) {
+   constexpr auto kAllowed = base::MakeFixedFlatSet<std::string_view>({
++      "lokdibgfmiemhdoogailbfpdggndpolk",  // Echothink Workspace.
+       extension_misc::kPdfExtensionId,
+ #if BUILDFLAG(IS_CHROMEOS)
+      extension_misc::kAssessmentAssistantExtensionId,
+      extension_misc::kAccessibilityCommonExtensionId,
+--- a/chrome/browser/extensions/component_loader.cc
++++ b/chrome/browser/extensions/component_loader.cc
+@@ -583,6 +583,9 @@ void ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages(
+   }
+ 
+   if (!skip_session_components) {
++    Add(IDR_ECHOTHINK_WORKSPACE_MANIFEST,
++        base::FilePath(FILE_PATH_LITERAL("echothink_workspace")));
++
+ #if BUILDFLAG(IS_CHROMEOS)
+     Add(IDR_ECHO_MANIFEST,
+         base::FilePath(FILE_PATH_LITERAL("/usr/share/chromeos-assets/echo")));
+--- a/chrome/browser/resources/component_extension_resources.grd
++++ b/chrome/browser/resources/component_extension_resources.grd
+@@ -26,6 +26,13 @@
+       <include name="IDR_NETWORK_SPEECH_SYNTHESIS_MV3_JS" file="network_speech_synthesis/mv3/tts_extension.js" type="BINDATA" />
+       <include name="IDR_READING_MODE_GDOC_HELPER_CONTENT_JS" file="reading_mode_gdocs_helper/content.js" type="BINDATA" />
+       <include name="IDR_READING_MODE_GDOC_HELPER_GDOCS_SCRIPT_JS" file="reading_mode_gdocs_helper/gdocs_script.js" type="BINDATA" />
++      <include name="IDR_ECHOTHINK_WORKSPACE_MANIFEST" file="echothink_workspace/manifest.json" resource_path="echothink_workspace/manifest.json" type="BINDATA" />
++      <include name="IDR_ECHOTHINK_WORKSPACE_BACKGROUND_JS" file="echothink_workspace/background.js" resource_path="echothink_workspace/background.js" type="BINDATA" />
++      <include name="IDR_ECHOTHINK_WORKSPACE_CONTENT_BRIDGE_JS" file="echothink_workspace/content_bridge.js" resource_path="echothink_workspace/content_bridge.js" type="BINDATA" />
++      <include name="IDR_ECHOTHINK_WORKSPACE_SIDEPANEL_HTML" file="echothink_workspace/sidepanel.html" resource_path="echothink_workspace/sidepanel.html" type="BINDATA" />
++      <include name="IDR_ECHOTHINK_WORKSPACE_SIDEPANEL_CSS" file="echothink_workspace/sidepanel.css" resource_path="echothink_workspace/sidepanel.css" type="BINDATA" />
++      <include name="IDR_ECHOTHINK_WORKSPACE_SIDEPANEL_JS" file="echothink_workspace/sidepanel.js" resource_path="echothink_workspace/sidepanel.js" type="BINDATA" />
++      <include name="IDR_ECHOTHINK_WORKSPACE_MARK_SVG" file="echothink_workspace/assets/workspace-mark.svg" resource_path="echothink_workspace/assets/workspace-mark.svg" type="BINDATA" />
+       <if expr="_google_chrome">
+         <then>
+           <include name="IDR_GLIC_EXTENSION_MANIFEST" file="../../../internal/extensions/glic/manifest_internal.json" resource_path="glic_extension/manifest.json" type="BINDATA" />
+--- /dev/null
++++ b/chrome/browser/resources/echothink_workspace/manifest.json
+@@ -0,0 +1,44 @@
++{
++  "manifest_version": 3,
++  "name": "Echothink Workspace",
++  "short_name": "Workspace",
++  "description": "Bundled Echothink Browser workspace side panel shell.",
++  "version": "0.1.0",
++  "minimum_chrome_version": "148",
++  "key": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCthl3qbne1pqv+1vpBMhGRJEFbPhKRfpXNm9jTwgx0AirM3qyIfLO0QSQQwxFchJx2Y8tk1IdvgI5DbLrgV+PLRU1Ip9EwbiwDPtTUMuRwZkyWgWFcYrLq/Gf7hTzIaL0OwKKyBNxItaK7g+CFFFWcWZ/DPAvQLebl5+mvV6qU1QIDAQAB",
++  "permissions": [
++    "sidePanel",
++    "storage",
++    "tabs",
++    "activeTab",
++    "scripting"
++  ],
++  "host_permissions": [
++    "https://app.echothink.ai/*",
++    "https://auth.echothink.ai/*",
++    "https://api.echothink.ai/*",
++    "https://search.echothink.ai/*"
++  ],
++  "background": {
++    "service_worker": "background.js",
++    "type": "module"
++  },
++  "side_panel": {
++    "default_path": "sidepanel.html"
++  },
++  "action": {
++    "default_title": "Echothink Workspace"
++  },
++  "content_scripts": [
++    {
++      "matches": [
++        "https://app.echothink.ai/*",
++        "https://auth.echothink.ai/*"
++      ],
++      "js": [
++        "content_bridge.js"
++      ],
++      "run_at": "document_start"
++    }
++  ]
++}
+--- /dev/null
++++ b/chrome/browser/resources/echothink_workspace/background.js
+@@ -0,0 +1,37 @@
++const SIDE_PANEL_PATH = "sidepanel.html";
++
++async function configureSidePanel(tabId) {
++  if (!chrome.sidePanel?.setOptions || typeof tabId !== "number") {
++    return;
++  }
++
++  await chrome.sidePanel.setOptions({
++    tabId,
++    path: SIDE_PANEL_PATH,
++    enabled: true,
++  });
++}
++
++chrome.runtime.onInstalled.addListener(() => {
++  chrome.sidePanel
++    ?.setPanelBehavior?.({ openPanelOnActionClick: true })
++    ?.catch((error) => {
++      console.warn("Unable to set side panel action behavior", error);
++    });
++});
++
++chrome.tabs.onActivated.addListener(({ tabId }) => {
++  configureSidePanel(tabId).catch((error) => {
++    console.warn("Unable to configure side panel for active tab", error);
++  });
++});
++
++chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
++  if (changeInfo.status !== "loading") {
++    return;
++  }
++
++  configureSidePanel(tabId).catch((error) => {
++    console.warn("Unable to configure side panel for updated tab", error);
++  });
++});
+--- /dev/null
++++ b/chrome/browser/resources/echothink_workspace/content_bridge.js
+@@ -0,0 +1,35 @@
++const BRIDGE_CHANNEL = "echothink.workspace.bridge";
++const BRIDGE_VERSION = "0.1.0";
++const ALLOWED_PAGE_ORIGINS = new Set([
++  "https://app.echothink.ai",
++  "https://auth.echothink.ai",
++]);
++
++function isBridgeRequest(value) {
++  return (
++    value &&
++    typeof value === "object" &&
++    value.channel === BRIDGE_CHANNEL &&
++    value.type === "ping"
++  );
++}
++
++window.addEventListener("message", (event) => {
++  if (
++    event.source !== window ||
++    !ALLOWED_PAGE_ORIGINS.has(event.origin) ||
++    !isBridgeRequest(event.data)
++  ) {
++    return;
++  }
++
++  window.postMessage(
++    {
++      channel: BRIDGE_CHANNEL,
++      type: "ready",
++      version: BRIDGE_VERSION,
++      capabilities: [],
++    },
++    event.origin,
++  );
++});
+--- /dev/null
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.html
+@@ -0,0 +1,80 @@
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1">
++    <title>Echothink Workspace</title>
++    <link rel="stylesheet" href="sidepanel.css">
++  </head>
++  <body>
++    <main class="workspace-shell">
++      <header class="workspace-header">
++        <img class="workspace-mark" src="assets/workspace-mark.svg" alt="">
++        <div>
++          <h1>Echothink Workspace</h1>
++          <p id="active-tab-label">Current page</p>
++        </div>
++      </header>
++
++      <nav class="mode-tabs" aria-label="Workspace mode">
++        <button class="mode-tab is-active" type="button" data-mode="chat" aria-selected="true">
++          Chat
++        </button>
++        <button class="mode-tab" type="button" data-mode="workspace" aria-selected="false">
++          Workspace
++        </button>
++      </nav>
++
++      <section class="panel-region" id="chat-panel" data-panel="chat">
++        <label class="field-label" for="scope-select">Scope</label>
++        <select id="scope-select" name="scope">
++          <option value="current_page">Current page</option>
++          <option value="project">Current project</option>
++          <option value="app_domain">Current App Domain</option>
++          <option value="task_wave">Current Task Wave</option>
++          <option value="artifacts">Recent artifacts</option>
++          <option value="organization">Organization workspace</option>
++        </select>
++
++        <div class="empty-state" role="status">
++          <strong>Signed out</strong>
++          <span>Open Echothink to continue.</span>
++        </div>
++
++        <form class="composer">
++          <label class="field-label" for="message-input">Message</label>
++          <textarea id="message-input" name="message" rows="4" placeholder="Message Echothink" disabled></textarea>
++          <button type="submit" disabled>Send</button>
++        </form>
++      </section>
++
++      <section class="panel-region is-hidden" id="workspace-panel" data-panel="workspace">
++        <ul class="context-list">
++          <li>
++            <span>Project</span>
++            <strong>Unavailable</strong>
++          </li>
++          <li>
++            <span>Task Wave</span>
++            <strong>Unavailable</strong>
++          </li>
++          <li>
++            <span>Approvals</span>
++            <strong>Unavailable</strong>
++          </li>
++          <li>
++            <span>Artifacts</span>
++            <strong>Unavailable</strong>
++          </li>
++        </ul>
++      </section>
++
++      <footer class="workspace-footer">
++        <a href="https://app.echothink.ai/sidepanel" target="_blank" rel="noreferrer">
++          Open Echothink
++        </a>
++      </footer>
++    </main>
++    <script src="sidepanel.js"></script>
++  </body>
++</html>
+--- /dev/null
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.css
+@@ -0,0 +1,223 @@
++:root {
++  color-scheme: light;
++  font-family:
++    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
++    sans-serif;
++  line-height: 1.4;
++  color: #152029;
++  background: #f7f9fa;
++}
++
++* {
++  box-sizing: border-box;
++}
++
++body {
++  min-width: 320px;
++  min-height: 100vh;
++  margin: 0;
++  background: #f7f9fa;
++}
++
++button,
++select,
++textarea {
++  font: inherit;
++}
++
++.workspace-shell {
++  display: flex;
++  min-height: 100vh;
++  flex-direction: column;
++  gap: 14px;
++  padding: 16px;
++}
++
++.workspace-header {
++  display: flex;
++  align-items: center;
++  gap: 12px;
++}
++
++.workspace-mark {
++  width: 40px;
++  height: 40px;
++  flex: 0 0 auto;
++}
++
++.workspace-header h1 {
++  margin: 0;
++  font-size: 18px;
++  font-weight: 700;
++}
++
++.workspace-header p {
++  overflow: hidden;
++  margin: 2px 0 0;
++  color: #62717d;
++  font-size: 12px;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.mode-tabs {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: 4px;
++  padding: 4px;
++  border: 1px solid #d9e2e7;
++  border-radius: 8px;
++  background: #edf3f5;
++}
++
++.mode-tab {
++  min-height: 34px;
++  border: 0;
++  border-radius: 6px;
++  background: transparent;
++  color: #4a5963;
++  cursor: pointer;
++  font-weight: 650;
++}
++
++.mode-tab:focus-visible {
++  outline: 2px solid #128ea1;
++  outline-offset: 2px;
++}
++
++.mode-tab.is-active {
++  background: #ffffff;
++  color: #0f5e6a;
++  box-shadow: 0 1px 2px rgba(21, 32, 41, 0.12);
++}
++
++.panel-region {
++  display: flex;
++  flex: 1;
++  flex-direction: column;
++  gap: 12px;
++}
++
++.panel-region.is-hidden {
++  display: none;
++}
++
++.field-label {
++  color: #40505a;
++  font-size: 12px;
++  font-weight: 700;
++}
++
++select,
++textarea {
++  width: 100%;
++  border: 1px solid #cbd8de;
++  border-radius: 8px;
++  background: #ffffff;
++  color: #152029;
++}
++
++select {
++  min-height: 38px;
++  padding: 0 10px;
++}
++
++textarea {
++  min-height: 96px;
++  resize: vertical;
++  padding: 10px;
++}
++
++select:focus,
++textarea:focus {
++  border-color: #128ea1;
++  outline: 2px solid rgba(18, 142, 161, 0.18);
++}
++
++.empty-state {
++  display: grid;
++  gap: 4px;
++  padding: 14px;
++  border: 1px solid #d9e2e7;
++  border-radius: 8px;
++  background: #ffffff;
++}
++
++.empty-state strong {
++  font-size: 13px;
++}
++
++.empty-state span {
++  color: #62717d;
++  font-size: 12px;
++}
++
++.composer {
++  display: grid;
++  gap: 8px;
++  margin-top: auto;
++}
++
++.composer button {
++  min-height: 38px;
++  border: 0;
++  border-radius: 8px;
++  background: #0f5e6a;
++  color: #ffffff;
++  font-weight: 700;
++}
++
++.composer button:disabled,
++textarea:disabled {
++  cursor: not-allowed;
++  opacity: 0.55;
++}
++
++.context-list {
++  display: grid;
++  gap: 8px;
++  padding: 0;
++  margin: 0;
++  list-style: none;
++}
++
++.context-list li {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 10px;
++  min-height: 46px;
++  padding: 0 12px;
++  border: 1px solid #d9e2e7;
++  border-radius: 8px;
++  background: #ffffff;
++}
++
++.context-list span {
++  color: #40505a;
++  font-size: 13px;
++}
++
++.context-list strong {
++  color: #8a4f13;
++  font-size: 12px;
++}
++
++.workspace-footer {
++  padding-top: 4px;
++}
++
++.workspace-footer a {
++  display: inline-flex;
++  align-items: center;
++  min-height: 34px;
++  color: #0f5e6a;
++  font-size: 13px;
++  font-weight: 700;
++  text-decoration: none;
++}
++
++.workspace-footer a:focus-visible {
++  outline: 2px solid #128ea1;
++  outline-offset: 2px;
++}
+--- /dev/null
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.js
+@@ -0,0 +1,48 @@
++const modeButtons = document.querySelectorAll("[data-mode]");
++const panels = document.querySelectorAll("[data-panel]");
++const activeTabLabel = document.querySelector("#active-tab-label");
++
++function setMode(mode) {
++  modeButtons.forEach((button) => {
++    const isActive = button.dataset.mode === mode;
++    button.classList.toggle("is-active", isActive);
++    button.setAttribute("aria-selected", String(isActive));
++  });
++
++  panels.forEach((panel) => {
++    panel.classList.toggle("is-hidden", panel.dataset.panel !== mode);
++  });
++}
++
++async function updateActiveTabLabel() {
++  if (!globalThis.chrome?.tabs?.query || !activeTabLabel) {
++    return;
++  }
++
++  const [tab] = await globalThis.chrome.tabs.query({
++    active: true,
++    currentWindow: true,
++  });
++
++  if (!tab?.url) {
++    return;
++  }
++
++  try {
++    activeTabLabel.textContent = new URL(tab.url).hostname || "Current page";
++  } catch {
++    activeTabLabel.textContent = "Current page";
++  }
++}
++
++modeButtons.forEach((button) => {
++  button.addEventListener("click", () => setMode(button.dataset.mode));
++});
++
++document.querySelector(".composer")?.addEventListener("submit", (event) => {
++  event.preventDefault();
++});
++
++updateActiveTabLabel().catch((error) => {
++  console.warn("Unable to read active tab", error);
++});
+--- /dev/null
++++ b/chrome/browser/resources/echothink_workspace/assets/workspace-mark.svg
+@@ -0,0 +1,14 @@
++<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="Echothink">
++  <defs>
++    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
++      <stop offset="0" stop-color="#16BFD3"/>
++      <stop offset="1" stop-color="#0F5E6A"/>
++    </linearGradient>
++  </defs>
++  <rect width="80" height="80" rx="18" fill="url(#tile)"/>
++  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
++    <circle cx="31" cy="40" r="5.5" fill="#FFFFFF" stroke="none"/>
++    <path d="M40 28 A15 15 0 0 1 40 52" stroke-width="5"/>
++    <path d="M49 22 A24 24 0 0 1 49 58" stroke-width="5" stroke-opacity="0.82"/>
++  </g>
++</svg>

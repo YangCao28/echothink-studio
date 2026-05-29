@@ -5,6 +5,7 @@
   "description": "Bundled Echothink Browser workspace side panel shell.",
   "version": "0.1.0",
   "minimum_chrome_version": "148",
+  "key": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCthl3qbne1pqv+1vpBMhGRJEFbPhKRfpXNm9jTwgx0AirM3qyIfLO0QSQQwxFchJx2Y8tk1IdvgI5DbLrgV+PLRU1Ip9EwbiwDPtTUMuRwZkyWgWFcYrLq/Gf7hTzIaL0OwKKyBNxItaK7g+CFFFWcWZ/DPAvQLebl5+mvV6qU1QIDAQAB",
   "permissions": [
     "sidePanel",
     "storage",

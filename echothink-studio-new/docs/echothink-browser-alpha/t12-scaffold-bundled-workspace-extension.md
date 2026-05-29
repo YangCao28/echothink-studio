@@ -37,6 +37,11 @@ The extension is source-only in T12. It is not yet bundled into Chromium; that
 remains T13 and the future `patches/echothink/0004-bundled-workspace-extension.patch`.
 No `patches/series` entry was added by this task.
 
+T13 update: `patches/echothink/0004-bundled-workspace-extension.patch` now
+bundles the extension as a Chromium component extension. The source manifest now
+also carries the fixed public key that derives bundled extension ID
+`lokdibgfmiemhdoogailbfpdggndpolk`.
+
 Local loading assumption for development is Chromium's unpacked-extension flow
 against `extensions/echothink-workspace/`. There is no npm, bundler, generated
 asset, or build step in this scaffold.
@@ -49,6 +54,9 @@ target:
 - `manifest_version`: `3`
 - `minimum_chrome_version`: `148`, matching the local Chromium pin family
   `148.0.7778.178`
+- fixed public key deriving extension ID
+  `lokdibgfmiemhdoogailbfpdggndpolk` (added by T13 for bundled/component
+  loading)
 - background service worker: `background.js`
 - default Side Panel path: `sidepanel.html`
 - content bridge: `content_bridge.js`, injected only on

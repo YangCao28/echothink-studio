@@ -223,6 +223,14 @@ Default Side Panel route:
 https://app.echothink.ai/sidepanel
 ```
 
+The Alpha extension scaffold is documented in
+`docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`.
+The bundled install patch is documented in
+`docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`; it
+loads the workspace shell as component extension ID
+`lokdibgfmiemhdoogailbfpdggndpolk` with no `update_url` and no broad host
+permissions.
+
 The Side Panel should provide two switchable modes. The mode selector should be
 visible at the top of the panel and preserve the user's last selected mode per
 profile.

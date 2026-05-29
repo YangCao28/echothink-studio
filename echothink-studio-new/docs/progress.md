@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-28
+Last updated: 2026-05-29
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -22,7 +22,8 @@ known limitations here.
 | T08 | W2 | Implement default policies/preferences patch | T01, T07 | DONE | First Echothink defaults patch created: `patches/echothink/0002-default-policies-and-preferences.patch`, appended to `patches/series` after inherited patches. Seeds normal-profile New Tab route (inherited custom-ntp hook empty-branch) and homepage/startup/default-bookmarks via Chromium initial preferences (new files `chrome/browser/resources/echothink/initial_preferences.json` and `echothink_bookmarks.html`). Default search provider and suggest URL were split to T19's `patches/echothink/0005-default-search-provider.patch`. All defaults are override-safe; no locked policy; native bookmark/history/download/password/cookie/DevTools behavior untouched. Validated: `validate_config.py`, `check_patch_files.py`, `check_gn_flags.py` exit 0 clean; `git apply --numstat` parses cleanly; series has 0 missing files. Patch application against Chromium source deferred to build pipeline (no local checkout, per T03). Task note: `docs/echothink-browser-alpha/t08-implement-default-policies-preferences-patch.md`. |
 | T10 | W3 | Implement New Tab route and fallback | T08, T09 | DONE | Created `patches/echothink/0003-new-tab-and-first-run.patch` and inserted it into `patches/series` between `echothink/0002` and `echothink/0005`. The authenticated New Tab route to `https://app.echothink.ai/newtab` already comes from T08's `0002` (inherited `HandleNewTabPageLocationOverride()` hook) and is NOT re-edited, so the patches never collide. T10 adds the local fallback/first-run page `chrome://echothink-first-run` (new file `chrome/browser/ui/webui/echothink_first_run.h`, reusing the inherited `first-run-page.patch` URLDataSource pattern), registers it in `chrome_web_ui_configs.cc`, adds the `echothink-first-run` host in `webui_url_constants.cc`, and opens it as the first first-run tab in `chrome_browser_main.cc` (additive, before the inherited ungoogled-first-run tab). The page is static, script-free, renders fully offline, and links ONLY to login, device enrollment, diagnostics (`chrome://echothink-diagnostics`), update, and support/download — no workspace/business data. No network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools changes; incognito New Tab behavior untouched. Validated: `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` exit 0; `git apply --numstat` parses cleanly (4 files). Real `patch -p1` application and runtime smoke deferred to build pipeline (no local Chromium checkout, per T03). Task note: `docs/echothink-browser-alpha/t10-implement-new-tab-route-and-fallback.md`. |
 | T19 | W2 | Implement default search provider | T08 | DONE | Created `patches/echothink/0005-default-search-provider.patch` and appended it to the Echothink tail block after `echothink/0002-default-policies-and-preferences.patch`. The patch re-points the inherited "No Search" prepopulated engine slot to Echothink Search and adds `default_search_provider` values to the T08 initial-preferences file: search URL `https://search.echothink.ai/search?q={searchTerms}` and suggest URL `https://search.echothink.ai/suggest?q={searchTerms}`. Search suggestions remain disabled by default over the inherited baseline and use the Echothink suggest route only when enabled. No omnibox internals, direct URL navigation, network stack, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. Task note: `docs/echothink-browser-alpha/t19-implement-default-search-provider.md`. |
-| T12 | W3 | Scaffold bundled Manifest V3 workspace extension | T02 | DONE | Created source-only extension scaffold at `extensions/echothink-workspace/` in the canonical browser root: MV3 `manifest.json`, background service worker, Side Panel HTML/CSS/JS, narrow content bridge, and extension-local asset. T02 is DONE; the canonical-root mismatch is carried forward and recorded in the task note. Manifest declares only `sidePanel`, `storage`, `tabs`, `activeTab`, and `scripting`; host permissions are limited to `app.echothink.ai`, `auth.echothink.ai`, `api.echothink.ai`, and `search.echothink.ai`. No backend/business logic, Chromium native patch, or `patches/series` change was made. Bundling is deferred to T13. Task note: `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`. |
+| T12 | W3 | Scaffold bundled Manifest V3 workspace extension | T02 | DONE | Created source-only extension scaffold at `extensions/echothink-workspace/` in the canonical browser root: MV3 `manifest.json`, background service worker, Side Panel HTML/CSS/JS, narrow content bridge, and extension-local asset. T02 is DONE; the canonical-root mismatch is carried forward and recorded in the task note. Manifest declares only `sidePanel`, `storage`, `tabs`, `activeTab`, and `scripting`; host permissions are limited to `app.echothink.ai`, `auth.echothink.ai`, `api.echothink.ai`, and `search.echothink.ai`. No backend/business logic was added. T13 has since added the fixed public key and bundled install patch. Task note: `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`. |
+| T13 | W4 | Add bundled extension install patch | T12 | DONE | Created `patches/echothink/0004-bundled-workspace-extension.patch` and inserted it into `patches/series` between `echothink/0003-new-tab-and-first-run.patch` and `echothink/0005-default-search-provider.patch`. T12 is DONE. The patch bundles the workspace shell as a Chromium component extension, allowlists only fixed extension ID `lokdibgfmiemhdoogailbfpdggndpolk`, registers it in `ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages()`, and adds resources under `chrome/browser/resources/echothink_workspace/`. Source manifest now carries the same public key, no `update_url`, exact permissions `sidePanel`, `storage`, `tabs`, `activeTab`, `scripting`, and only Echothink-owned host permissions. No extension permission model weakening or Web Store replacement path was added. Task note: `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 
 ## T00 Notes
@@ -784,9 +785,10 @@ Prerequisite status:
 
 Implementation decisions:
 
-- Created a source-only Manifest V3 extension skeleton. It is not yet bundled
-  into Chromium; that is T13 and the future
-  `patches/echothink/0004-bundled-workspace-extension.patch`.
+- Created a source-only Manifest V3 extension skeleton. T13 has since added the
+  fixed public key to the source manifest and created
+  `patches/echothink/0004-bundled-workspace-extension.patch` to bundle it as a
+  component extension.
 - Local loading assumption for development is Chromium's unpacked-extension flow
   against `extensions/echothink-workspace/`. There is no npm, bundler,
   generated asset, or build step in this scaffold.
@@ -823,10 +825,91 @@ Known limitations:
 
 - The extension was not loaded in a live Chromium profile in this environment.
   T12 validates source shape and local syntax only.
-- Bundling and default installation remain T13.
+- Bundling and default installation were completed by T13; see T13 Notes below.
 - Persisted Side Panel mode state remains T15.
 - Chat UI behavior, outbound scope metadata, service states, request proof
   integration, and Workspace Context rendering remain later tasks.
+
+## T13 Notes
+
+Changed files:
+
+- `extensions/echothink-workspace/manifest.json` (added the fixed public key so
+  the source scaffold derives the same ID as the bundled component extension)
+- `patches/echothink/0004-bundled-workspace-extension.patch` (new patch)
+- `patches/series` (inserted `echothink/0004-bundled-workspace-extension.patch`
+  between `0003` and `0005`)
+- `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`
+  (noted the T13 public key and bundled-install completion)
+- `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`
+  (new task note)
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
+- `docs/progress.md` (this file)
+
+Prerequisite status:
+
+- T13 depends on T12; T12 is marked `DONE`.
+- The canonical-root mismatch is carried forward as an accepted baseline
+  dependency. Documentation lives under `echothink-studio-new/docs`; patches
+  and extension source live at the inherited browser repository root.
+
+Implementation decisions:
+
+- Bundled the workspace shell as a Chromium component extension rather than as
+  a Web Store/external update install. This loads it by default for normal
+  profiles through `ComponentLoader` while preserving normal extension behavior
+  outside the trusted Echothink component extension.
+- Added only fixed extension ID `lokdibgfmiemhdoogailbfpdggndpolk` to the
+  component extension allowlist.
+- Added the extension resource files to
+  `chrome/browser/resources/component_extension_resources.grd` and copied the
+  shell to `chrome/browser/resources/echothink_workspace/` in the patch.
+- The manifest has no `update_url`. A public Web Store extension cannot
+  silently replace the bundled component because the component does not opt into
+  Web Store updates and another extension cannot claim this ID without the
+  corresponding private key.
+- The permission model is not weakened. The manifest declares only `sidePanel`,
+  `storage`, `tabs`, `activeTab`, and `scripting`; host permissions are limited
+  to `https://app.echothink.ai/*`, `https://auth.echothink.ai/*`,
+  `https://api.echothink.ai/*`, and `https://search.echothink.ai/*`.
+- No backend service calls, search ranking, chat orchestration, workflow
+  orchestration, project/task business logic, conversation persistence, or
+  device/private-key handling were added.
+- Network stack, TLS validation, sandbox, renderer internals, downloads,
+  history, bookmarks, password manager, cookies, and DevTools were untouched.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `python3 -m json.tool extensions/echothink-workspace/manifest.json` | Passed; source manifest parses. |
+| `node --check extensions/echothink-workspace/background.js` | Passed. |
+| `node --check extensions/echothink-workspace/content_bridge.js` | Passed. |
+| `node --check extensions/echothink-workspace/sidepanel.js` | Passed. |
+| Node manifest shape/ID check | Passed; derived ID is `lokdibgfmiemhdoogailbfpdggndpolk`, permissions/host permissions match exactly, no broad permissions or `update_url`. |
+| `git apply --numstat patches/echothink/0004-bundled-workspace-extension.patch` | Passed; unified diff parses cleanly. |
+| `git apply --stat patches/echothink/0004-bundled-workspace-extension.patch` | Passed; patch reports 10 files changed, 492 insertions. |
+| `python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `python3 devutils/validate_config.py` | Passed, exit 0. |
+| `python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+
+Build-pipeline application command (deferred; no local Chromium checkout):
+
+- `patch -p1 < patches/echothink/0004-bundled-workspace-extension.patch` from
+  the pinned Chromium `148.0.7778.178` source root after inherited patches and
+  Echothink patches `0001`, `0002`, and `0003`, or
+  `python3 devutils/validate_patches.py --local <unmodified-chromium-src>`.
+
+Known limitations:
+
+- No local Chromium source checkout exists, so real `patch -p1` application and
+  browser runtime smoke testing were not run.
+- A clean-profile browser build still needs to verify that extension ID
+  `lokdibgfmiemhdoogailbfpdggndpolk` loads as a component extension by default
+  and that the Side Panel opens.
+- Persisted mode state, remote chat, workspace context rendering, request proof,
+  and device identity integration remain later tasks.
 
 ## T30 Notes
 
