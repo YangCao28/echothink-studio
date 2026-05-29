@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T34 native browser regression suite done — M7 source-level regression report PASS, no native-primitive regressions; runtime smoke owned by T36/T37)
+Last updated: 2026-05-29 (T36 Windows packaging smoke — prior prerequisite block RESOLVED (T31/T32/T35 all DONE, 0008 present); static packaging-readiness dry run PASS, but live install/launch/restart/uninstall smoke NOT RUN — macOS host, no Windows build/installer — so T36 stays BLOCKED on the build/host environment only, not on any browser-repository artifact)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -46,7 +46,7 @@ known limitations here.
 | T33 | W11 | Run full patch validation | T05, T08, T10, T13, T19, T21, T23, T26, T31 | DONE | M7 patch validation report at `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`. All nine required prerequisite patches now exist and are active (T26's `0008-request-proof-helper.patch` was the last blocker; now DONE). Series ordering validated: 127 active entries = 108 inherited + 19 Echothink, all Echothink entries appended strictly after the inherited block (0 out-of-order), 0 missing files, 0 orphan files. **Echothink patches confirmed ordered after inherited patches.** Per-patch structural parse (`git apply --numstat`) clean for all 19 Echothink patches. Validation utilities clean on this POSIX host: `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0 against the full series. Full stacked live application via `validate_patches.py` NOT runnable: no local pristine Chromium `148.0.7778.178` checkout, and `--remote` is blocked before download by the inherited DEPS-parser baseline (parser allows only `Var`; pinned DEPS uses `Str(...)` 8×, confirmed by targeted fetch of DEPS lines 218/219/260…) — same inherited tooling issue documented in T03 (#4), with no Echothink patch ID. No Echothink or inherited patch failures recorded by ID. Each required patch was additionally proven by real `patch -p1` in its own task (e.g. T05, T26). Follow-up: extend the inherited DEPS parser to support `Str(...)` or run `validate_patches.py --local` against a clean 148.0.7778.178 checkout to complete a live full-stack apply; runtime/build smoke remains with T34/T35/T37. |
 | T34 | W12 | Run native browser regression suite | T33 | DONE | M7 regression report at `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`. Prerequisite T33 is now `DONE` (earlier blocker — missing `0008-request-proof-helper.patch` — resolved; T26/T27/T33 all `DONE`, patch active in series). Ran the source-level native-primitive ownership regression suite: inventoried all 19 active Echothink patches (`patches/series` 113-131), extracted 39 distinct touched files, and read every shared-file hunk at a primitive intersection. **Result: 0 of 39 touched files are in any native primitive subsystem** — negative grep over `/bookmarks/`, `/history/`, `/download`, `/password_manager/`, `net/cookies`, `dom_storage`, `/ssl/`, `cert_verif`, `/devtools/`, `tab_strip`, `/tabs/`, `browser_window`, `/popup`, `/sandbox/`, `/renderer/` returned 0 matches. The only intersections are additive registrations, not replacements: navigation URL gate inside `Navigate()` (0006/0009/0012, leaves tab/window/popup machinery intact — intended T21 behavior), one extra component-extension allowlist entry + one `Add()` call (0004), one new allowlisted `echothinkDevice` API feature + IDL source (0024), and default-bookmark seed via preferences/HTML (0002). Chromium-native ownership of tabs, windows, popups, history, downloads, bookmarks, password manager, cookies, local storage, TLS, DevTools, and extension loading is **preserved at source level**. **No blocker (or any) native-primitive regression found.** Structural validators clean: `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0. Known limitation: live runtime browser smoke (launching a built binary) was NOT run — no local Chromium `148.0.7778.178` build exists (same limitation as T33/T03 #4); runtime exercise of each primitive on an installed build is owned by T36 Windows packaging smoke + T37 Alpha candidate. |
 | T35 | W12 | Run Echothink behavior tests | T33 | DONE | M7 behavior test report at `docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md` (supersedes the earlier blocker note). Prerequisite T33 is now `DONE` (the T26 `0008-request-proof-helper.patch` blocker is resolved). All 10 required Alpha behaviors PASS at static/structural fidelity against the validated full patch set: (1) branding `0001`+`0010`; (2) New Tab route `0002` + local fallback `0003`; (3) default search/suggest `0005`; (4) Side Panel opens — MV3 manifest + `0014`; (5) Chat/Workspace-Context modes `0015`/`0016`/`0017` persisted to `chrome.storage.local echothink.sidePanel.mode`; (6) chat `scope_type` metadata `0016`; (7) login gate + T20 allowlist `0011`+`0006`; (8) device identity persistence (ECDSA P-256 + DPAPI envelope, non-secret Local State metadata, reset) `0007`; (9) proof helper signs only allowlisted Echothink HTTPS URLs — native `0008` allowlist == JS `sidepanel.js` allowlist, bridge `0024` locked to bundled ext ID, headers `0019`, decision-table mirror 20/20; (10) optional `echo://` routes `0009` + invalid fallback `0012`. Validated: `check_patch_files.py`/`check_gn_flags.py`/`validate_config.py` exit 0; all 19 Echothink patches parse via `git apply --numstat`; `node --check` clean on all 3 extension JS files; proof allowlist mirror 20/20; `git diff --check` clean. Runtime-interactive smoke (compiled-browser launch, click-through, OS-restart DPAPI persistence, live omnibox/`echo://`) is explicitly DEFERRED NON-BLOCKING to T36 against a built signed binary — no local Chromium `148.0.7778.178` build exists here (same constraint T33 documented). No required behavior failed. |
-| T36 | W13 | Run Windows packaging smoke test | T31, T32, T35 | BLOCKED | Task note at `docs/echothink-browser-alpha/t36-run-windows-packaging-smoke-test.md`. T36 cannot run because prerequisite T35 is `BLOCKED`, with no explicit baseline exception for Windows packaging smoke. T31 and T32 are `DONE`; the Windows Alpha Dev identity patch, icon assets, update-channel metadata contract, and smoke procedure are present. However, no validated Alpha behavior pass or Windows installer candidate exists after T35, so install, Start Menu launch, app/icon identity, New Tab, Side Panel restart persistence, device identity persistence, search, signing/update-channel observations, and uninstall were not run. The remaining missing upstream artifact is `patches/echothink/0008-request-proof-helper.patch`. |
+| T36 | W13 | Run Windows packaging smoke test | T31, T32, T35 | BLOCKED | Task note rewritten at `docs/echothink-browser-alpha/t36-run-windows-packaging-smoke-test.md` (supersedes the stale prerequisite-gap note). **Prior block reason RESOLVED:** all prerequisites are now `DONE` (T31, T32, T35) and the previously-missing `patches/echothink/0008-request-proof-helper.patch` exists and is active (series line 130). T36 stays `BLOCKED` only because its defining deliverable is a **live runtime** Windows smoke (build + sign + install on a clean Windows host, launch, New Tab, Side Panel restart persistence, search, uninstall) and this environment is macOS with no Chromium `148.0.7778.178` checkout, no Windows build toolchain, and no built/signed `EchothinkBrowserSetup` installer — nothing to install/launch/uninstall, so those runtime passes are recorded NOT RUN rather than faked. A full **static packaging-readiness dry run PASSED**: pin `148.0.7778.178`; identity patch `0010` carries `Echothink Browser Dev`/`EchothinkBrowserSetup`/`Echothink Browser Setup`/`Software\Echothink\Browser Dev`; app `echothink.ico` + full PNG set + setup `echothink-setup.ico` present; series 127 = 108 inherited + 19 Echothink, all after inherited (first at 113), 0 out-of-order; all 19 Echothink patches parse via `git apply --numstat`; `check_patch_files.py`/`check_gn_flags.py`/`validate_config.py` exit 0; T32 `.channel.json` Dev/alpha metadata contract documented. Unblock = run T32 build+smoke procedure on a Windows Chromium build host (no further repo change needed). |
 | T37 | W14 | Produce Windows Alpha candidate | T33, T34, T35, T36 | BLOCKED | Task note at `docs/echothink-browser-alpha/t37-produce-windows-alpha-candidate.md`. T37 cannot produce a signed/tested Windows Alpha candidate because all direct prerequisites are `BLOCKED`, with no explicit baseline exception: T33 patch validation, T34 native regression, T35 Echothink behavior tests, and T36 Windows packaging smoke. T23 and T24 are now complete, and active Echothink patch count is `17`. No candidate artifact, signed installer, SHA256, channel sidecar, or build timestamp was emitted. Current traceability snapshot: Chromium pin `148.0.7778.178`, repository revision marker `1`, intended Alpha channel `dev`. The remaining missing required Alpha artifact is `patches/echothink/0008-request-proof-helper.patch`. Local metadata/input checks pass for existing packaging inputs, but no Windows build/sign/install/smoke was run. |
 
 ## T26 Notes
@@ -196,6 +196,68 @@ Known limitations:
   `buildProofHeaders()` with their own allowlisted destination.
 - Header acceptance, nonce/`access_token_hash` requirements, replay protection,
   and device revocation remain backend/gateway responsibilities.
+
+## T36 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t36-run-windows-packaging-smoke-test.md`
+  (rewritten — supersedes the stale prerequisite-gap note)
+- `docs/progress.md` (T36 row, header, this section)
+
+Prerequisite status (all RESOLVED since the previous T36 note):
+
+- T31 (`0010-windows-packaging-identity.patch`) — `DONE`.
+- T32 (Windows Alpha build/signing/smoke runbook) — `DONE`.
+- T35 (Echothink behavior tests) — `DONE`; its blocker T33 is `DONE`; the
+  previously-missing `patches/echothink/0008-request-proof-helper.patch` now
+  exists and is active in `patches/series` (line 130).
+- No prerequisite blocks T36.
+
+Why T36 stays BLOCKED:
+
+- T36's defining deliverable is a **live runtime** Windows packaging smoke:
+  build + sign an `EchothinkBrowserSetup` installer, install it on a clean
+  Windows machine, launch from Start Menu, verify name/icon, verify New Tab,
+  Side Panel + restart persistence, default search, and uninstall.
+- This environment is macOS (`darwin`) with no Chromium `148.0.7778.178`
+  checkout, no Windows Chromium build toolchain, and no built/signed installer.
+  There is nothing to install, launch, restart, or uninstall.
+- Per "do not fake completion," the runtime smoke items are recorded NOT RUN
+  rather than PASS. The blocker is purely the build/host environment, not a
+  prerequisite or missing browser-repository artifact.
+
+Static packaging-readiness dry run (largest local validation; all PASS):
+
+| Check | Result |
+|---|---|
+| Chromium pin `148.0.7778.178`, revision `1` | PASS |
+| `patches/echothink/0010-windows-packaging-identity.patch` present | PASS |
+| Identity strings (`Echothink Browser Dev`, `EchothinkBrowserSetup`, `Echothink Browser Setup`, `Software\Echothink\Browser Dev`, install component `Browser Dev`) | PASS |
+| App icon `assets/icons/echothink.ico` + PNG set 16-256 + setup icon `assets/installer/echothink-setup.ico` | PASS |
+| Prior blocker `0008-request-proof-helper.patch` + `0007-device-identity.patch` present and active | PASS |
+| Series ordering: 127 active = 108 inherited + 19 Echothink, all after inherited (first at line 113), 0 out-of-order | PASS |
+| `git apply --numstat` over all 19 Echothink patches | PASS (19/19) |
+| `devutils/check_patch_files.py` / `check_gn_flags.py` / `validate_config.py` | PASS (exit 0) |
+| T32 `.channel.json` Dev/alpha metadata contract documented (`channel=dev`, `release_phase=alpha`, Dev `app_update_id`/`installer_product_id`) | PASS |
+| T32 smoke procedure covers install/launch/branding/New Tab/Side Panel/search/restart/channel/uninstall | PASS |
+
+Unblock requirement:
+
+- Run the T32 build procedure on a Windows x64 Chromium build host to produce
+  and (test-)sign `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe`
+  + `.channel.json`, then run the T32 smoke procedure steps 1-9 on a clean
+  Windows VM/profile and attach the evidence listed in the T36 note. No further
+  browser-repository code, patch, asset, or doc change is required.
+
+Known limitations:
+
+- Static readiness only; this is not a passing live M7 Windows smoke report.
+- Same hard environment limitation documented by T03/T32/T33/T34/T35: not
+  Windows, no local Chromium source checkout, no build.
+- No backend services, gateway logic, network stack, TLS, sandbox, renderer
+  internals, downloads, history, bookmarks, password manager, cookies, or
+  DevTools behavior changed.
 
 ## T37 Notes
 
