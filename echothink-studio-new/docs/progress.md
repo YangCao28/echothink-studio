@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T18 merged, T26 blocked)
+Last updated: 2026-05-29 (T18 merged, T27 blocked)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -36,6 +36,7 @@ known limitations here.
 | T23 | W6 | Implement device key generation and storage | T22 | BLOCKED | T23 cannot start because prerequisite T22 is not marked `DONE` and no final M5 device identity design exists. `docs/progress.md` marks T22 `BLOCKED`, and the T22 task note explicitly says T23 must not use it as authorization to implement `patches/echothink/0007-device-identity.patch`. Missing T22 decisions: local device identity fields, Windows DPAPI private-key storage format/scope, non-secret metadata placement, restart persistence, explicit reset behavior, and native bridge boundary that keeps private key material out of extension JavaScript/logs/docs. No Chromium patch was created, `patches/series` was not changed, and no key material, token, or proof internals were exposed. Task note: `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`. |
 | T25 | W8 | Define request proof payload and allowlist | T24 | BLOCKED | T25 cannot start because prerequisite T24 is not marked `DONE`, no T24 progress row exists, and no `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` task note exists. T24 is also blocked by the upstream M5 chain because T23 remains `BLOCKED`. No proof helper spec was authored: canonical payload shape, Echothink-domain signing allowlist, third-party rejection behavior, browser-side signing boundary, replay-protection ownership, and proof-validation ownership remain undefined. No Chromium patch, extension code, backend service, gateway logic, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior, private key material, access token, signed proof, or proof internals were changed or exposed. Task note: `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`. |
 | T26 | W9 | Implement proof signing helper | T25 | BLOCKED | T26 cannot start because prerequisite T25 is not marked `DONE`, no final M5 proof helper spec exists, and the T25 task note explicitly says T26 must not use it as authorization to implement `patches/echothink/0008-request-proof-helper.patch`. Missing T25 decisions: canonical request-proof payload fields/order/normalization, Echothink destination signing allowlist, malformed and third-party rejection behavior, browser-side signing-only boundary, backend replay/proof-validation ownership, and safe signature/proof result shape. Upstream blockers remain T24 bridge, T23 device key implementation, T22 device identity design, and T20 login-gate spec. No patch was created, `patches/series` was not changed, Chromium network/TLS behavior remains untouched, and no private key material, access token, signed proof, or proof internals were exposed. Task note: `docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md`. |
+| T27 | W10 | Integrate proof helper into extension calls | T16, T24, T26 | BLOCKED | T27 cannot start because prerequisite T24 is not marked `DONE`, no T24 progress row or task note exists, and T26 is marked `BLOCKED` with no proof signing helper patch. T16 is `DONE` and supplies the current chat request path, but there is no authorized bridge method, proof helper result shape, signing error model, proof header/metadata contract, or active `patches/echothink/0008-request-proof-helper.patch` for the extension to consume. No extension files, manifest permissions, host permissions, Chromium patch files, or `patches/series` entries were changed; no private key material, access tokens, proof payloads, signed proof values, or proof internals were exposed. Task note: `docs/echothink-browser-alpha/t27-integrate-proof-helper-into-extension-calls.md`. |
 | T28 | W5 | Implement optional `echo://` resolver | T10 | DONE | Task note at `docs/echothink-browser-alpha/t28-implement-optional-resolver.md`. Prerequisite T10 is DONE. Created `patches/echothink/0009-echo-protocol-router.patch` and inserted `echothink/0009-echo-protocol-router.patch` into `patches/series` after `echothink/0011-first-run-gate-shell.patch` and before `echothink/0010-windows-packaging-identity.patch`. Patch adds a narrow `chrome/browser/ui/browser_navigator.cc` navigation helper that rewrites only known `echo://` route shapes (`dashboard`, `project/{id}`, `task-wave/{id}`, `app-domain/{domain}/{instance}`, `artifact/{id}`, `approval/{id}`) to matching `https://app.echothink.ai/` URLs, accepts only unreserved non-empty segments, rejects query/fragment payloads, and clears the `echo://` referrer. No backend authorization, device proof, protected content, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Unsupported/invalid route UX remains T29. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and real `patch -p1` against the pinned Chromium `148.0.7778.178` `browser_navigator.cc` source copy all pass. |
 | T29 | W6 | Add invalid `echo://` route fallback page | T28 | DONE | Task note at `docs/echothink-browser-alpha/t29-add-invalid-fallback-page.md`. Prerequisite T28 is DONE. Created `patches/echothink/0012-invalid-echo-route-fallback.patch` and inserted `echothink/0012-invalid-echo-route-fallback.patch` in `patches/series` immediately after `echothink/0009-echo-protocol-router.patch`. Patch keeps T28 valid route resolution intact and rewrites unsupported/invalid `echo://` navigations to local `chrome://echothink-invalid-echo`, clearing the original referrer and carrying no original route, segments, query, or fragment into the fallback URL or page. The WebUI page is static/script-free, contains no workspace/resource data, and links only to dashboard, setup, and support. No backend service, gateway logic, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and targeted `git apply --check --include=chrome/browser/ui/browser_navigator.cc` against the existing post-T28 source copy all pass. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
@@ -2109,6 +2110,87 @@ Known limitations:
   validated.
 - No signing helper tests or runtime proof smoke tests were run because no
   implementation patch exists in this blocked pass.
+
+## T27 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t27-integrate-proof-helper-into-extension-calls.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T27 depends on T16, T24, and T26.
+- T16 is marked `DONE` and provides the current Side Panel chat request path.
+- T24 is not marked `DONE`; the task-status table has no T24 row, and no
+  `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` task
+  note exists.
+- T26 is marked `BLOCKED`; no final proof signing helper implementation exists
+  and no `patches/echothink/0008-request-proof-helper.patch` exists.
+- No progress entry or task note explicitly accepts incomplete T24 or T26 as a
+  baseline dependency for T27.
+
+Blocked work:
+
+- No extension API calls were updated to request proof signatures.
+- No proof headers, proof metadata, `Authorization`, or `DPoP` headers were
+  attached to Echothink API/chat calls.
+- No signing-error UI state was added to the Side Panel because the bridge error
+  model and helper result shape are undefined.
+- No extension files, manifest permissions, host permissions, Chromium patch
+  files, or `patches/series` entries were changed.
+- No backend service, gateway logic, search ranking, chat orchestration,
+  workflow orchestration, business page, network stack, TLS validation, sandbox,
+  renderer internals, downloads, history, bookmarks, password manager, cookies,
+  or DevTools behavior was changed.
+- No private key material, access tokens, proof payloads, signed proof values,
+  or proof internals were exposed in JavaScript, logs, docs examples, or
+  progress notes.
+
+Missing prerequisite work from T24 and T26:
+
+- Add a T24 progress row and task note.
+- Deliver the T24 narrow bridge implementation artifact, including any required
+  `patches/echothink/` patch and `patches/series` entry if T24 is delivered as
+  a Chromium patch.
+- Confirm the bridge method name and call shape available to the bundled
+  workspace extension.
+- Confirm the caller restriction to fixed extension ID
+  `lokdibgfmiemhdoogailbfpdggndpolk`.
+- Complete T25's request-proof payload and allowlist spec.
+- Implement T26's proof signing helper in
+  `patches/echothink/0008-request-proof-helper.patch` and add the patch to
+  `patches/series`.
+- Define the proof result shape, destination allowlist, header/metadata
+  contract, and recoverable signing error model that T27 must consume.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "^\\| T16 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T16 is marked `DONE`. |
+| `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T24 is not marked `DONE`. |
+| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` | Failed as expected: no T24 task note exists. |
+| `rtk rg -n "^\\| T26 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T26 is marked `BLOCKED`. |
+| `rtk ls -l patches/echothink/0008-request-proof-helper.patch` | Failed as expected: no proof helper patch exists. |
+| `rtk rg -n "echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive blocked patch is not listed in the active patch pipeline. |
+| `rtk python3 -m json.tool extensions/echothink-workspace/manifest.json` | Passed: manifest JSON parses. |
+| Node manifest shape check | Passed: MV3, `side_panel.default_path`, exact narrow permissions, exact Echothink host permissions, no `update_url`, and no broad or forbidden permissions. |
+| `rtk node --check extensions/echothink-workspace/background.js` | Passed. |
+| `rtk node --check extensions/echothink-workspace/content_bridge.js` | Passed. |
+| `rtk node --check extensions/echothink-workspace/sidepanel.js` | Passed. |
+| `rtk rg -n -e Authorization -e Bearer -e access_token -e refresh_token -e privateKey -e private_key -e DPoP -e signed_request_proof extensions/echothink-workspace` | Exited 1 as expected: extension source contains no token, private-key, authorization-header, DPoP, or signed-proof handling. |
+| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t27-integrate-proof-helper-into-extension-calls.md echothink-studio-new/docs/progress.md` | Passed: the T27 note and shared progress file exist. |
+| `rtk git diff --check` | Passed: no whitespace errors. |
+
+Known limitations:
+
+- This is a blocker record, not the M5 proof-capable extension implementation.
+- T27 delivery criteria remain unmet until T24 and T26 are complete.
+- No runtime Side Panel signing-error smoke test was run because no extension
+  bridge or proof signing helper exists in this blocked pass.
+- The broader browser Alpha docs were left unchanged because no T27 integration
+  design or implementation decisions are complete yet.
 
 ## T32 Notes
 
