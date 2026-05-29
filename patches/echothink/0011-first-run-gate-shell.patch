@@ -1,0 +1,64 @@
+# Echothink-Patch: 0011-first-run-gate-shell
+# Title: Gate first launch to the Echothink first-run shell (no normal browser before setup)
+# Area: first-run, login-gate (shell only)
+# Depends-On: echothink/0003-new-tab-and-first-run.patch (T10 added the local first-run gate shell chrome://echothink-first-run and opened it as the first first-run tab additively, alongside the inherited chrome://ungoogled-first-run how-to and the normal-profile New Tab / startup tabs; this patch edits the exact first-run AddFirstRunTabs block that 0003 introduced, so it must apply after 0003)
+# Inherited-Depends-On: extra/ungoogled-chromium/first-run-page.patch (that patch added the inherited chrome://ungoogled-first-run first-run tab line this patch removes from the first-run path)
+# Browser-Layer-Reason: The first-run gate is a browser-startup presentation decision: on a fresh profile the binary must lead the user to sign-in / device enrollment and must not open the general-purpose workspace / New Tab surface before identity is established. This lives in the browser's first-run startup code (ChromeBrowserMainParts::PreCreateThreads first-run block); a backend service cannot decide which tabs the browser opens on its very first launch, and the gate must hold even when no Echothink service is reachable.
+# Preferred-Surface-Checked: existing-hook (edits only the inherited first-run AddFirstRunTabs block; reuses the existing chrome://echothink-first-run shell from 0003 as the gate destination; introduces no new page, no new subsystem, no policy/pref change)
+# Security-Critical-Areas: none (changes only which local tabs open on first run; no change to navigation throttling, network stack, TLS, sandbox, renderer internals, downloads, history, bookmarks, password manager, cookies, or DevTools)
+# Native-Files-Touched: chrome/browser/chrome_browser_main.cc
+# Rebase-Risk: medium (depends on the inherited first-run-page.patch and on echothink/0003 having already populated the first-run AddFirstRunTabs block; the @@ line numbers are anchored on the post-0003 block and rely on patch -p1 offset tolerance)
+# Validation: Apply inherited patches, then echothink/0001..0003, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178; build and confirm on a FRESH profile (delete the profile / use a clean --user-data-dir): (1) first launch opens exactly one tab, chrome://echothink-first-run, in the foreground; (2) the inherited chrome://ungoogled-first-run how-to tab and the normal-profile workspace / New Tab (https://app.echothink.ai/newtab) tab do NOT open during first run; (3) chrome://ungoogled-first-run is still reachable by typing the URL; (4) the gate shell links to sign-in and device enrollment. Then confirm that on a SECOND (non-first) launch normal startup is unchanged and that a New Tab still resolves to https://app.echothink.ai/newtab (seeded by 0002).
+#
+# Notes:
+# - Scope: this is the M2 "first-run gate shell" (T11). It governs ONLY what the
+#   browser presents at first launch. The ONGOING login gate -- local
+#   auth/device readiness flags, the unauthenticated navigation allowlist, the
+#   blocked-navigation explanation page, and restoring normal Chromium browsing
+#   after setup completes -- is specified by T20 and implemented by T21 in the
+#   separate echothink/0006-login-gate.patch. This patch deliberately does NOT
+#   add navigation interception, so after the first-run tabs open the user is not
+#   yet prevented from typing another URL; that enforcement is T21's.
+# - This reuses the chrome://echothink-first-run shell created by
+#   echothink/0003-new-tab-and-first-run.patch instead of adding a second page,
+#   per the T11 brief ("reuse the New Tab fallback style where possible" and
+#   "keep the shell minimal and service-oriented"). The shell is static,
+#   script-free, renders fully offline, contains no workspace/business data, and
+#   links only to sign-in, device enrollment, diagnostics, update, and
+#   support/download.
+# - T10's 0003 opened chrome://echothink-first-run additively, BEFORE the
+#   inherited chrome://ungoogled-first-run tab and the normal first-run tabs, as
+#   an explicitly interim choice pending this gate (recorded in 0003's note).
+#   T11 now establishes the gate: on first run only chrome://echothink-first-run
+#   is opened. The inherited how-to page is intentionally not shown before setup
+#   (it remains reachable at chrome://ungoogled-first-run), and the
+#   general-purpose workspace / New Tab surface (master_prefs_->new_tabs) is not
+#   opened before setup. This is a narrow, first-run-only browser-shell change;
+#   non-first-run startup is untouched.
+# - The edit is inside `if (first_run::IsChromeFirstRun())`, so it affects only
+#   the first launch on a fresh profile. The --app / --app-id guard from the
+#   inherited code is preserved.
+
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -1261,8 +1261,17 @@ int ChromeBrowserMainParts::PreCreateThr
+   if (first_run::IsChromeFirstRun()) {
+     if (!base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kApp) &&
+         !base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kAppId)) {
+-      browser_creator_->AddFirstRunTabs({GURL("chrome://echothink-first-run")});
+-      browser_creator_->AddFirstRunTabs({GURL("chrome://ungoogled-first-run")});
+-      browser_creator_->AddFirstRunTabs(master_prefs_->new_tabs);
++      // Echothink Browser first-run gate shell (T11). On first launch present
++      // ONLY the local Echothink first-run gate shell (chrome://echothink-first-run,
++      // added by echothink/0003-new-tab-and-first-run.patch), which leads the
++      // user to sign-in and device enrollment. The inherited
++      // chrome://ungoogled-first-run how-to tab and the normal-profile New Tab /
++      // startup tabs (master_prefs_->new_tabs, which route to the general-purpose
++      // workspace) are intentionally NOT opened during first run, so the browser
++      // does not present a normal general-purpose browser before setup. Both
++      // remain reachable after setup; ongoing navigation gating and post-setup
++      // restoration of normal browsing are owned by the login gate
++      // (echothink/0006-login-gate.patch, T20/T21).
++      browser_creator_->AddFirstRunTabs({GURL("chrome://echothink-first-run")});
+     }
+   }
