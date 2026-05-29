@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T35 blocked)
+Last updated: 2026-05-29 (T36 blocked)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -45,6 +45,7 @@ known limitations here.
 | T33 | W11 | Run full patch validation | T05, T08, T10, T13, T19, T21, T23, T26, T31 | BLOCKED | Task note at `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`. T33 cannot run full inherited-plus-Echothink patch validation because required prerequisites T21, T23, and T26 are `BLOCKED`, with no explicit baseline exception for T33. Missing required artifacts are `patches/echothink/0006-login-gate.patch`, `patches/echothink/0007-device-identity.patch`, and `patches/echothink/0008-request-proof-helper.patch`; none are listed in `patches/series`. Current active `patches/series` is structurally valid for existing patches (`entries=122`, `inherited=108`, `echothink=14`, `missing_series_files=0`, `duplicates=0`, `echothink_tail_ok=True`), and `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` pass for the current incomplete series. Full application to pinned Chromium source was not run because it would validate an incomplete Alpha patch set. |
 | T34 | W12 | Run native browser regression suite | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`. T34 cannot run the native browser regression suite because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for T34. Missing prerequisite artifacts remain `patches/echothink/0006-login-gate.patch`, `patches/echothink/0007-device-identity.patch`, and `patches/echothink/0008-request-proof-helper.patch`; none are active in `patches/series`. No runtime validation was run for tabs, windows, popups, history, downloads, bookmarks, password manager, cookies, local storage, TLS, DevTools, or extension loading. T34 made no browser patch/source/extension/asset/packaging changes and did not replace Chromium primitives; runtime Chromium-native ownership remains unconfirmed until T33 completes and a runnable validated browser build exists. |
 | T35 | W12 | Run Echothink behavior tests | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md`. T35 cannot run because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for behavior testing. T33 is blocked by missing required Alpha implementation patches `patches/echothink/0006-login-gate.patch`, `patches/echothink/0007-device-identity.patch`, and `patches/echothink/0008-request-proof-helper.patch`, owned by blocked T21, T23, and T26. Required behavior checks for login gate and allowlist behavior, device identity persistence, and proof-helper URL allowlist signing cannot pass because those browser artifacts do not exist. Branding, New Tab, search, Side Panel, Chat, Workspace Context, scope metadata, and optional `echo://` behavior were not rerun because there is no validated full Alpha browser candidate after T33. No source or patch files changed; docs only. |
+| T36 | W13 | Run Windows packaging smoke test | T31, T32, T35 | BLOCKED | Task note at `docs/echothink-browser-alpha/t36-run-windows-packaging-smoke-test.md`. T36 cannot run because prerequisite T35 is `BLOCKED`, with no explicit baseline exception for Windows packaging smoke. T31 and T32 are `DONE`; the Windows Alpha Dev identity patch, icon assets, update-channel metadata contract, and smoke procedure are present. However, no validated Alpha behavior pass or Windows installer candidate exists after T35, so install, Start Menu launch, app/icon identity, New Tab, Side Panel restart persistence, search, signing/update-channel observations, and uninstall were not run. Missing upstream artifacts remain `patches/echothink/0006-login-gate.patch`, `patches/echothink/0007-device-identity.patch`, and `patches/echothink/0008-request-proof-helper.patch`. Docs only; no source, patch, asset, installer, network, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. |
 
 ## T00 Notes
 
@@ -2444,3 +2445,66 @@ Known limitations:
 - This is a blocker record, not the final M7 behavior test report.
 - T35 cannot mark any required Alpha behavior as passed until T33 is complete
   and the browser behavior pass runs against a validated candidate.
+
+## T36 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t36-run-windows-packaging-smoke-test.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T36 depends on T31, T32, and T35.
+- T31 is marked `DONE`; the active Windows Alpha Dev identity patch exists at
+  `patches/echothink/0010-windows-packaging-identity.patch`.
+- T32 is marked `DONE`; the Windows Alpha runbook records build, signing,
+  update-channel metadata, smoke, restart, and uninstall procedure.
+- T35 is marked `BLOCKED`, not `DONE`.
+- No progress row or task note explicitly accepts incomplete T35 as a baseline
+  dependency for T36.
+
+Blocked delivery criteria:
+
+- No Windows installer was installed on a clean Windows machine.
+- No Start Menu launch was performed.
+- No installed app name, taskbar/window icon, Apps & Features entry,
+  `chrome://version` output, or uninstall surface was inspected.
+- New Tab, default search, Side Panel open behavior, and Side Panel mode
+  persistence after restart were not runtime-smoked because no validated Alpha
+  candidate exists after T35.
+- Install, update-channel, and signing observations were not captured from a
+  signed `EchothinkBrowserSetup` artifact.
+
+Local packaging anchors confirmed:
+
+- T31/T32 define Alpha Dev Windows identity as `Echothink Browser Dev`.
+- Installer artifact shape remains
+  `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe`.
+- App icon source remains `assets/icons/echothink.ico`.
+- Setup icon source remains `assets/installer/echothink-setup.ico`.
+- Update sidecar shape remains
+  `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.channel.json`.
+- Dev metadata IDs remain
+  `e81ee626-9e29-52ac-ad5d-ff669f8e65b1` and
+  `21b7be8b-f85e-53f5-8e90-189d16d3b6d7`.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "^\\| T(31|32|35) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T31 and T32 are `DONE`; T35 is `BLOCKED`. |
+| `rtk rg -n "^Status: BLOCKED|T33 is blocked|0006-login-gate|0007-device-identity|0008-request-proof-helper" echothink-studio-new/docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md` | Passed: T35 records the blocking missing artifacts. |
+| `rtk ls -l patches/echothink/0006-login-gate.patch patches/echothink/0007-device-identity.patch patches/echothink/0008-request-proof-helper.patch` | Failed as expected: all three required blocked patch artifacts are missing. |
+| `rtk ls -l patches/echothink/0010-windows-packaging-identity.patch assets/icons/echothink.ico assets/installer/echothink-setup.ico` | Passed: T31 patch and T06/T32 icon inputs exist. |
+| `rtk rg -n "Echothink Browser Dev|EchothinkBrowserSetup|Software\\\\Echothink\\\\Browser Dev" patches/echothink/0010-windows-packaging-identity.patch` | Passed: Windows Alpha Dev identity strings are present in the packaging patch. |
+| `rtk rg -n "Smoke Test Procedure|Launch and branding|New Tab|Side Panel|Search|Restart persistence|Update-channel metadata|Uninstall" echothink-studio-new/docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md` | Passed: T32 contains the Windows smoke procedure T36 should run after unblock. |
+
+Known limitations:
+
+- This is a blocker smoke report, not a passing M7 Windows smoke report.
+- This environment is not a clean Windows machine and no signed
+  `EchothinkBrowserSetup` installer was available, so install, launch, restart,
+  and uninstall were not runnable.
+- T36 remains blocked until T35 is `DONE` or explicitly accepted as a baseline
+  dependency by a future task owner.
