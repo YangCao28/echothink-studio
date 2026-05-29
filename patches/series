@@ -114,3 +114,4 @@ echothink/0001-branding.patch
 echothink/0002-default-policies-and-preferences.patch
 echothink/0003-new-tab-and-first-run.patch
 echothink/0005-default-search-provider.patch
+echothink/0010-windows-packaging-identity.patch

@@ -1,0 +1,142 @@
+# Echothink-Patch: 0010-windows-packaging-identity
+# Title: Set Windows packaging identity to Echothink Browser Dev
+# Area: windows-packaging
+# Depends-On: echothink/0001-branding.patch
+# Browser-Layer-Reason: Windows installer, shell, registry, and version identity are compiled into browser and installer resources before any Echothink backend is reachable. These are local application identity surfaces, not service behavior.
+# Preferred-Surface-Checked: native-required (Chromium BRANDING, install_static install constants, installer registry roots, and version UI strings have no policy/preference/extension override suitable for installed Windows app identity)
+# Security-Critical-Areas: none
+# Native-Files-Touched: chrome/app/theme/chromium/BRANDING, chrome/app/chromium_strings.grd, chrome/install_static/chromium_install_modes.h, chrome/installer/mini_installer/mini_installer.rc, chrome/installer/mini_installer/mini_installer_constants.cc, components/version_ui_strings.grdp
+# Rebase-Risk: medium (Windows install_static and mini_installer files move occasionally across Chromium milestones; contexts are narrow and isolated to identity constants)
+# Validation: Apply inherited patches through echothink/0005, then this patch with `patch -p1`; build Windows mini_installer and verify Start Menu/uninstall/version surfaces show Echothink Browser Dev while chrome.exe internals remain unchanged for Alpha.
+#
+# Scope notes:
+# - Sets Windows Alpha to the Dev channel identity from the T30 channel spec:
+#   visible shell/app name "Echothink Browser Dev", install path
+#   %LOCALAPPDATA%\Echothink\Browser Dev\Application, registry roots under
+#   Software\Echothink\Browser Dev, and version build labels that expose
+#   "Echothink Browser Dev".
+# - Uses Chromium's existing BRANDING and install_static insertion points rather
+#   than renaming chrome.exe, setup.exe, sandbox IDs, COM GUIDs, or other risky
+#   internals during Alpha.
+# - The Echothink icon sources live in the patch/config repository at
+#   assets/icons/echothink.ico and assets/installer/echothink-setup.ico. This
+#   text patch documents the mini_installer icon handoff, but the binary copy is
+#   intentionally left to the Windows packaging step because the inherited patch
+#   pipeline is unified-diff text oriented.
+
+--- a/chrome/app/theme/chromium/BRANDING
++++ b/chrome/app/theme/chromium/BRANDING
+@@ -1,9 +1,9 @@
+-COMPANY_FULLNAME=The Chromium Authors
+-COMPANY_SHORTNAME=The Chromium Authors
+-PRODUCT_FULLNAME=Chromium
+-PRODUCT_SHORTNAME=Chromium
+-PRODUCT_INSTALLER_FULLNAME=Chromium Installer
+-PRODUCT_INSTALLER_SHORTNAME=Chromium Installer
++COMPANY_FULLNAME=Echothink
++COMPANY_SHORTNAME=Echothink
++PRODUCT_FULLNAME=Echothink Browser
++PRODUCT_SHORTNAME=Echothink Browser
++PRODUCT_INSTALLER_FULLNAME=Echothink Browser Setup
++PRODUCT_INSTALLER_SHORTNAME=EchothinkBrowserSetup
+ COPYRIGHT=Copyright 2017 The Chromium Authors. All rights reserved.
+ MAC_BUNDLE_ID=org.chromium.Chromium
+ MAC_CREATOR_CODE=Cr24
+--- a/chrome/app/chromium_strings.grd
++++ b/chrome/app/chromium_strings.grd
+@@ -1050,10 +1050,10 @@
+ 
+       <!-- App shortcuts -->
+       <message name="IDS_APP_SHORTCUTS_SUBDIR_NAME" desc="Name for the Chromium Apps Start Menu folder name.">
+-        Chromium Apps
++        Echothink
+       </message>
+       <message name="IDS_APP_SHORTCUTS_SUBDIR_NAME_CANARY" desc="Name for the Chrome Apps Start Menu folder name.">
+-        Chromium Apps
++        Echothink
+       </message>
+       <if expr="is_win">
+         <message name="IDS_APP_SHORTCUTS_SUBDIR_NAME_BETA" desc="Unused in Chromium builds" translateable="false">
+--- a/chrome/install_static/chromium_install_modes.h
++++ b/chrome/install_static/chromium_install_modes.h
+@@ -17,10 +17,10 @@ namespace install_static {
+ // The brand-specific company name to be included as a component of the install
+ // and user data directory paths. May be empty if no such dir is to be used.
+-inline constexpr wchar_t kCompanyPathName[] = L"";
++inline constexpr wchar_t kCompanyPathName[] = L"Echothink";
+ 
+ // The brand-specific product name to be included as a component of the install
+ // and user data directory paths.
+-inline constexpr wchar_t kProductPathName[] = L"Chromium";
++inline constexpr wchar_t kProductPathName[] = L"Browser Dev";
+ 
+ // The brand-specific safe browsing client name.
+ inline constexpr char kSafeBrowsingName[] = "chromium";
+@@ -47,15 +47,15 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+     .logo_suffix = L"",  // No logo suffix for the primary install mode.
+     .app_guid =
+         L"",  // Empty app_guid since no integration with Google Update.
+-    .base_app_name = L"Chromium",  // A distinct base_app_name.
+-    .base_app_id = L"Chromium",    // A distinct base_app_id.
+-    .browser_prog_id_prefix = L"ChromiumHTM",  // Browser ProgID prefix.
++    .base_app_name = L"Echothink Browser Dev",  // A distinct base_app_name.
++    .base_app_id = L"EchothinkBrowserDev",      // A distinct base_app_id.
++    .browser_prog_id_prefix = L"EchoBHTM",      // Browser ProgID prefix.
+     .browser_prog_id_description =
+-        L"Chromium HTML Document",  // Browser ProgID description.
+-    .direct_launch_url_scheme = "chromium",
+-    .pdf_prog_id_prefix = L"ChromiumPDF",  // PDF ProgID prefix.
++        L"Echothink Browser HTML Document",  // Browser ProgID description.
++    .direct_launch_url_scheme = "echothink-browser",
++    .pdf_prog_id_prefix = L"EchoBPDF",  // PDF ProgID prefix.
+     .pdf_prog_id_description =
+-        L"Chromium PDF Document",  // PDF ProgID description.
++        L"Echothink Browser PDF Document",  // PDF ProgID description.
+     .active_setup_guid =
+         L"{7D2B3E1D-D096-4594-9D8F-A6667F12E0AC}",  // Active Setup
+                                                        // GUID.
+--- a/chrome/installer/mini_installer/mini_installer.rc
++++ b/chrome/installer/mini_installer/mini_installer.rc
+@@ -29,6 +29,9 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+ 
+ // Icon with lowest ID value placed first to ensure application icon
+ // remains consistent on all systems.
++// Echothink Browser packaging replaces this checked-in Chromium icon with
++// assets/installer/echothink-setup.ico before building the
++// EchothinkBrowserSetup distribution artifact.
+ IDI_MINI_INSTALLER ICON "mini_installer.ico"
+ 
+ #ifdef APSTUDIO_INVOKED
+--- a/chrome/installer/mini_installer/mini_installer_constants.cc
++++ b/chrome/installer/mini_installer/mini_installer_constants.cc
+@@ -64,12 +64,12 @@ const wchar_t kCleanupRegistryKey[] = L"Software\\Chrome for Testing";
+ #else
+ // The path to the key containing each app's Clients registry key.
+ // No trailing slash on this one because the app's GUID is not appended.
+-const wchar_t kClientsKeyBase[] = L"Software\\Chromium";
++const wchar_t kClientsKeyBase[] = L"Software\\Echothink\\Browser Dev";
+ // The path to the key containing each app's Client State registry key.
+ // No trailing slash on this one because the app's GUID is not appended.
+-const wchar_t kClientStateKeyBase[] = L"Software\\Chromium";
++const wchar_t kClientStateKeyBase[] = L"Software\\Echothink\\Browser Dev";
+ // The path to the key in which kCleanupRegistryValue is found.
+-const wchar_t kCleanupRegistryKey[] = L"Software\\Chromium";
++const wchar_t kCleanupRegistryKey[] = L"Software\\Echothink\\Browser Dev";
+ #endif
+ 
+ }  // namespace mini_installer
+--- a/components/version_ui_strings.grdp
++++ b/components/version_ui_strings.grdp
+@@ -4,10 +4,10 @@
+     About Version
+   </message>
+   <message name="IDS_VERSION_UI_OFFICIAL" desc="official build on the about:version page">
+-    Official Build, ungoogled-chromium
++    Official Build, Echothink Browser Dev
+   </message>
+   <message name="IDS_VERSION_UI_UNOFFICIAL" desc="unofficial build on the about:version page">
+-    Developer Build, ungoogled-chromium
++    Developer Build, Echothink Browser Dev
+   </message>
+   <message name="IDS_VERSION_UI_32BIT" desc="32-bit on the chrome://version page">
+     (32-bit)

@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-28
+Last updated: 2026-05-29
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -24,6 +24,7 @@ known limitations here.
 | T19 | W2 | Implement default search provider | T08 | DONE | Created `patches/echothink/0005-default-search-provider.patch` and appended it to the Echothink tail block after `echothink/0002-default-policies-and-preferences.patch`. The patch re-points the inherited "No Search" prepopulated engine slot to Echothink Search and adds `default_search_provider` values to the T08 initial-preferences file: search URL `https://search.echothink.ai/search?q={searchTerms}` and suggest URL `https://search.echothink.ai/suggest?q={searchTerms}`. Search suggestions remain disabled by default over the inherited baseline and use the Echothink suggest route only when enabled. No omnibox internals, direct URL navigation, network stack, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. Task note: `docs/echothink-browser-alpha/t19-implement-default-search-provider.md`. |
 | T12 | W3 | Scaffold bundled Manifest V3 workspace extension | T02 | DONE | Created source-only extension scaffold at `extensions/echothink-workspace/` in the canonical browser root: MV3 `manifest.json`, background service worker, Side Panel HTML/CSS/JS, narrow content bridge, and extension-local asset. T02 is DONE; the canonical-root mismatch is carried forward and recorded in the task note. Manifest declares only `sidePanel`, `storage`, `tabs`, `activeTab`, and `scripting`; host permissions are limited to `app.echothink.ai`, `auth.echothink.ai`, `api.echothink.ai`, and `search.echothink.ai`. No backend/business logic, Chromium native patch, or `patches/series` change was made. Bundling is deferred to T13. Task note: `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
+| T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 
 ## T00 Notes
 
@@ -885,12 +886,81 @@ Validation commands and results:
 
 Known limitations:
 
-- No Chromium source checkout exists locally, so expected native Windows source
-  paths such as `chrome/app/theme/chromium/BRANDING` and
-  `chrome/install_static/install_modes.cc` must be verified during T31 against
-  pinned Chromium `148.0.7778.178`.
+- No Chromium source checkout existed locally during T30. T31 later implemented
+  the active patch against `chrome/app/theme/chromium/BRANDING` and
+  `chrome/install_static/chromium_install_modes.h`; real application against
+  pinned Chromium `148.0.7778.178` remains deferred to a source checkout.
 - No Windows installer technology has been selected and no installer was built
   or run in this environment.
 - Backend availability of `updates.echothink.ai` and
   `app.echothink.ai/download-browser` was not validated; these are packaging
   route contracts only.
+
+## T31 Notes
+
+Changed files:
+
+- `patches/echothink/0010-windows-packaging-identity.patch`
+- `patches/series`
+- `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T31 depends on T30; T30 is marked `DONE`.
+- T30's prerequisite chain to T05 and T06 is already complete. T05 supplies the
+  product-string baseline, and T06 supplies `assets/icons/echothink.ico` and
+  `assets/installer/echothink-setup.ico`.
+
+Implementation decisions:
+
+- Created the active Windows packaging identity patch at
+  `patches/echothink/0010-windows-packaging-identity.patch`.
+- Appended `echothink/0010-windows-packaging-identity.patch` to the active
+  Echothink tail in `patches/series` after
+  `echothink/0005-default-search-provider.patch`.
+- Implemented the Alpha default as T30's `dev` track:
+  `Echothink Browser Dev` for Windows shell/app identity,
+  `Echothink\\Browser Dev\\Application` install path components,
+  `Software\\Echothink\\Browser Dev` installer registry roots,
+  `Echothink Browser Setup` / `EchothinkBrowserSetup` installer metadata, and
+  `Echothink Browser Dev` in `chrome://version` build labels. Machine-readable
+  update/package channel metadata remains T32 because Chromium's non-Google
+  install mode reports an empty runtime channel.
+- Preserved Alpha's low-risk executable/internal-name boundary: no rename of
+  `chrome.exe`, `chrome_proxy.exe`, `setup.exe`, or `mini_installer.exe`; no
+  sandbox ID, COM GUID, app container SID prefix, update-mechanic, network,
+  TLS, renderer, downloads, history, bookmarks, password-manager, cookie, or
+  DevTools changes.
+- Documented mini-installer icon handoff to
+  `assets/installer/echothink-setup.ico` but did not embed binary icon deltas
+  in the unified-diff patch.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk ls -l patches/echothink/0010-windows-packaging-identity.patch assets/icons/echothink.ico assets/installer/echothink-setup.ico` | Passed: patch and required icon assets exist. |
+| `rtk rg -n "echothink/0010-windows-packaging-identity.patch" patches/series` | Passed: active series entry present. |
+| `rtk rg -n "Echothink Browser Dev|EchothinkBrowserSetup|Browser Dev|Software\\\\Echothink" patches/echothink/0010-windows-packaging-identity.patch` | Passed: expected identity strings present. |
+| `rtk git apply --numstat patches/echothink/0010-windows-packaging-identity.patch` | Passed: patch parses cleanly; six source files touched. |
+| `rtk python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `rtk python3 devutils/validate_config.py` | Passed, exit 0. |
+
+Build-pipeline application command (deferred; no local Chromium checkout):
+
+- `patch -p1 < patches/echothink/0010-windows-packaging-identity.patch` from the
+  pinned Chromium `148.0.7778.178` source root after inherited patches and
+  earlier active Echothink patches have applied.
+
+Known limitations:
+
+- No local Chromium source checkout exists, so real patch application against
+  the pinned source and a Windows compile were not run.
+- No installer was built or installed here. Start Menu, taskbar, Apps &
+  Features, UAC/file-description, uninstall, and icon smoke tests remain T32/T36.
+- Full side-by-side Canary/Beta/Stable/Enterprise Stable install modes still
+  need final app/update IDs and packaging docs from T32.

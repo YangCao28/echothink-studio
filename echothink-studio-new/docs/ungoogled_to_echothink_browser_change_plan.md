@@ -541,6 +541,12 @@ It is the source of truth for the Windows display name, Start Menu name,
 `EchothinkBrowserSetup` installer stem, channel IDs and labels, Alpha-versus-Beta
 branding tradeoff, and update-channel metadata contract expected by packaging.
 
+The active Alpha implementation patch is
+`patches/echothink/0010-windows-packaging-identity.patch`, with task details in
+`docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`.
+It sets the Windows Alpha Dev app/install identity and version label while
+deliberately keeping Chromium-derived executable internals unchanged for Alpha.
+
 Channels:
 
 ```text
@@ -684,6 +690,8 @@ Tasks:
 - Add signing workflow notes.
 - Add smoke test script.
 - Add release checklist.
+- Use `patches/echothink/0010-windows-packaging-identity.patch` as the active
+  Alpha Dev packaging identity baseline.
 
 Done when:
 
