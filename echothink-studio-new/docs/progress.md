@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T31 added)
+Last updated: 2026-05-29 (T32 added)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -28,6 +28,7 @@ known limitations here.
 | T20 | W4 | Define login gate local state and allowlist | T10, T11 | READY | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. Both prerequisites are now `DONE` (T10; and T11, merged in this change — see the T11 row above and task note `t11-add-first-run-shell.md`). The earlier `BLOCKED` state (recorded when T11 was missing) is therefore resolved and T20 may proceed. Still pending: the M4 login-gate spec itself (local auth/device readiness flags, unauthenticated navigation allowlist, blocked-navigation behavior, setup-completion criteria, diagnostics/support exceptions). T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 | T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
+| T32 | W5 | Add Windows build/signing/smoke docs | T30, T31 | DONE | Windows Alpha release runbook created at `docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`. Prerequisites T30 and T31 are DONE. Documents the Alpha Dev `mini_installer` build path, asset staging, `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe` package shape, signing workflow, sidecar update-channel metadata and reserved per-channel IDs, smoke procedure covering launch, branding, New Tab, Side Panel, search, restart, and uninstall, plus an Alpha candidate release checklist. Validation is docs/path based because this environment is not Windows and has no local Chromium source checkout. |
 
 ## T00 Notes
 
@@ -1180,4 +1181,69 @@ Known limitations:
 - No installer was built or installed here. Start Menu, taskbar, Apps &
   Features, UAC/file-description, uninstall, and icon smoke tests remain T32/T36.
 - Full side-by-side Canary/Beta/Stable/Enterprise Stable install modes still
-  need final app/update IDs and packaging docs from T32.
+  need implementation after T32's release metadata ID reservations.
+
+## T32 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T32 depends on T30 and T31; both are marked `DONE`.
+- T30 supplies Windows identity, channel, installer naming, and update metadata
+  contracts.
+- T31 supplies the active Alpha Dev packaging identity patch at
+  `patches/echothink/0010-windows-packaging-identity.patch`.
+
+Implementation decisions:
+
+- Created the Windows Alpha release runbook under `docs/` only, per the T32
+  docs-only constraint. The planned `build/windows/` path remains a future home
+  for scripts or duplicated release docs when non-doc artifact creation is
+  allowed.
+- Selected Chromium `mini_installer` as the Alpha installer path. The signed
+  distributable artifact shape is
+  `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe`.
+- Documented Windows build preparation from the canonical browser build root,
+  inherited patch application, domain substitution, asset staging for
+  `assets/installer/echothink-setup.ico` and `assets/icons/echothink.ico`, GN
+  generation, and `chrome mini_installer` build targets.
+- Documented signing with Windows SDK `signtool`, timestamping, hash capture,
+  runtime-binary signing expectations, and internal-only limits for unsigned or
+  test-signed builds.
+- Documented sidecar update-channel metadata for Alpha Dev and reserved stable
+  per-channel metadata IDs for Canary, Dev, Beta, Stable, and Enterprise Stable.
+- Documented the manual smoke test procedure for launch, branding, New Tab,
+  Side Panel, search, restart persistence, update-channel metadata, and
+  uninstall.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "^\\| T3[01] \\|.*DONE" docs/progress.md` | Passed: T30 and T31 are marked `DONE`. |
+| `rtk ls -l docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md ../patches/echothink/0010-windows-packaging-identity.patch ../assets/icons/echothink.ico ../assets/installer/echothink-setup.ico` | Passed: required docs, patch, and icon assets exist. |
+| `rtk rg -n "Build Procedure|Signing Workflow|Update-Channel Notes|Smoke Test Procedure|Alpha Candidate Release Checklist|uninstall|restart" docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md` | Passed. |
+| `rtk rg -n "Echothink Browser Dev|\"channel\": \"dev\"|e81ee626-9e29-52ac-ad5d-ff669f8e65b1|21b7be8b-f85e-53f5-8e90-189d16d3b6d7|assets/icons/echothink.ico|assets/installer/echothink-setup.ico" docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md` | Passed: Alpha Dev names, channel metadata, and asset references are present. |
+| `rtk rg -n "t32-add-windows-build-signing-smoke-docs|restart|uninstall" docs/ungoogled_to_echothink_browser_change_plan.md docs/echothink_browser_construction.md` | Passed. |
+| `rtk git diff --check` | Passed: no whitespace errors. |
+
+Known limitations:
+
+- This environment is not Windows and has no local Chromium source checkout, so
+  no real Windows build, signing, install, launch, restart, or uninstall smoke
+  test was run.
+- Alpha uses Chromium `mini_installer`; MSI/WiX, NSIS, Inno, public installer
+  UI bitmaps, and a replacement auto-updater remain future release-pipeline
+  work.
+- T31 implements Alpha Dev identity only. The per-channel update/app IDs
+  recorded by T32 are release metadata reservations until a later task wires
+  full side-by-side install/update modes.
+- App icon source paths must be verified during the first real Windows Chromium
+  checkout/build. Shipping with Chromium taskbar or shortcut icons is an Alpha
+  candidate blocker unless explicitly recorded as a known failed smoke item.

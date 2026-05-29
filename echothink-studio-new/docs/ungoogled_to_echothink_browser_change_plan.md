@@ -556,6 +556,15 @@ The active Alpha implementation patch is
 It sets the Windows Alpha Dev app/install identity and version label while
 deliberately keeping Chromium-derived executable internals unchanged for Alpha.
 
+The Windows Alpha release runbook is maintained in
+`docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`.
+For Alpha, it selects Chromium `mini_installer`, defines the
+`EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe` artifact
+shape, signing workflow, sidecar update-channel metadata, and the manual smoke
+procedure for launch, branding, New Tab, Side Panel, search, restart, and
+uninstall. The earlier planned `build/windows/` path remains a future home for
+scripts or duplicated release docs when non-doc artifact creation is allowed.
+
 Channels:
 
 ```text
@@ -572,7 +581,8 @@ Acceptance:
 - Installer identity is Echothink Browser.
 - Channel is visible in About/version surfaces.
 - Packaging metadata carries the canonical channel ID and update track.
-- Smoke test can verify launch, New Tab, Side Panel, and search provider.
+- Smoke test can verify launch, branding, New Tab, Side Panel, search provider,
+  restart persistence, and uninstall.
 
 ## 6. Recommended Implementation Sequence
 

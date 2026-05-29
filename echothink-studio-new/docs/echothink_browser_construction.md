@@ -179,6 +179,12 @@ note is
 It applies the Windows Alpha Dev app/install identity while preserving
 Chromium-derived executable internals for Alpha.
 
+The Windows Alpha release runbook is
+`docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`. It
+documents the Alpha `mini_installer` build path, `EchothinkBrowserSetup` package
+shape, signing workflow, sidecar update-channel metadata, manual smoke test,
+and Alpha candidate release checklist.
+
 The detailed Alpha default policy/preference set is maintained in
 `docs/echothink-browser-alpha/t07-define-default-policy-preference-set.md`.
 It defines the homepage, New Tab, default search and suggest URLs, default
@@ -611,12 +617,14 @@ Deliverables:
   `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`
 - Active Alpha Dev packaging identity from
   `patches/echothink/0010-windows-packaging-identity.patch`
+- Alpha build/signing/update/smoke checklist from
+  `docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`
 
 Acceptance:
 
 - Installer works on a clean Windows machine
 - Update metadata verifies successfully
-- Smoke tests pass after install and after update
+- Smoke tests pass after install, restart, update when available, and uninstall
 - Rollback process is documented and tested
 
 ### Milestone 6: Production Readiness
@@ -738,4 +746,5 @@ Echothink Browser Alpha is complete when:
 - Device identity can be generated and stored locally
 - Backend contract for enrollment and protected requests is documented
 - Existing browser primitives still pass baseline validation
-- Patch validation and smoke tests pass
+- Patch validation and Windows Alpha smoke tests pass, including launch,
+  branding, New Tab, Side Panel, search, restart, and uninstall
