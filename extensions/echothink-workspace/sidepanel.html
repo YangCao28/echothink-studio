@@ -16,16 +16,30 @@
         </div>
       </header>
 
-      <nav class="mode-tabs" aria-label="Workspace mode">
-        <button class="mode-tab is-active" type="button" data-mode="chat" aria-selected="true">
+      <nav class="mode-tabs" aria-label="Workspace mode" role="tablist">
+        <button
+          class="mode-tab is-active"
+          type="button"
+          data-mode="chat"
+          role="tab"
+          aria-controls="chat-panel"
+          aria-selected="true"
+        >
           Chat
         </button>
-        <button class="mode-tab" type="button" data-mode="workspace" aria-selected="false">
-          Workspace
+        <button
+          class="mode-tab"
+          type="button"
+          data-mode="workspace_context"
+          role="tab"
+          aria-controls="workspace-context-panel"
+          aria-selected="false"
+        >
+          Workspace Context
         </button>
       </nav>
 
-      <section class="panel-region" id="chat-panel" data-panel="chat">
+      <section class="panel-region" id="chat-panel" data-panel="chat" role="tabpanel">
         <label class="field-label" for="scope-select">Scope</label>
         <select id="scope-select" name="scope">
           <option value="current_page">Current page</option>
@@ -48,7 +62,12 @@
         </form>
       </section>
 
-      <section class="panel-region is-hidden" id="workspace-panel" data-panel="workspace">
+      <section
+        class="panel-region is-hidden"
+        id="workspace-context-panel"
+        data-panel="workspace_context"
+        role="tabpanel"
+      >
         <ul class="context-list">
           <li>
             <span>Project</span>

@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T29 merged, T23 blocked)
+Last updated: 2026-05-29 (T15 and T29 merged, T23 blocked)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -25,6 +25,7 @@ known limitations here.
 | T12 | W3 | Scaffold bundled Manifest V3 workspace extension | T02 | DONE | Created source-only extension scaffold at `extensions/echothink-workspace/` in the canonical browser root: MV3 `manifest.json`, background service worker, Side Panel HTML/CSS/JS, narrow content bridge, and extension-local asset. T02 is DONE; the canonical-root mismatch is carried forward and recorded in the task note. Manifest declares only `sidePanel`, `storage`, `tabs`, `activeTab`, and `scripting`; host permissions are limited to `app.echothink.ai`, `auth.echothink.ai`, `api.echothink.ai`, and `search.echothink.ai`. No backend/business logic was added. T13 has since added the fixed public key and bundled install patch. Task note: `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`. |
 | T13 | W4 | Add bundled extension install patch | T12 | DONE | Created `patches/echothink/0004-bundled-workspace-extension.patch` and inserted it into `patches/series` between `echothink/0003-new-tab-and-first-run.patch` and `echothink/0005-default-search-provider.patch`. T12 is DONE. The patch bundles the workspace shell as a Chromium component extension, allowlists only fixed extension ID `lokdibgfmiemhdoogailbfpdggndpolk`, registers it in `ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages()`, and adds resources under `chrome/browser/resources/echothink_workspace/`. Source manifest now carries the same public key, no `update_url`, exact permissions `sidePanel`, `storage`, `tabs`, `activeTab`, `scripting`, and only Echothink-owned host permissions. No extension permission model weakening or Web Store replacement path was added. Task note: `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`. |
 | T14 | W5 | Implement Side Panel container | T13 | DONE | Added `patches/echothink/0014-side-panel-container.patch` and appended it to `patches/series` after the active Echothink tail. T13 is DONE. The extension action remains the browser UI entry point: `background.js` now configures `openPanelOnActionClick` on install/startup/service-worker load, enables the local `sidepanel.html` shell for tabs, and calls `chrome.sidePanel.open()` from the action click user gesture as a runtime fallback. No new permissions, host permissions, privileged bridges, backend calls, or business logic were added. Runtime click smoke is deferred because no local Chromium source/build exists. Task note: `docs/echothink-browser-alpha/t14-implement-side-panel-container.md`. |
+| T15 | W6 | Implement Side Panel mode selector | T14 | DONE | Added `patches/echothink/0015-side-panel-mode-selector.patch` and appended it to `patches/series` after `echothink/0014-side-panel-container.patch`. T14 is DONE. The Side Panel source shell now exposes exactly two Alpha modes, `chat` and `workspace_context`, with a visible top-level selector labelled Chat and Workspace Context. `sidepanel.js` persists selected mode under `echothink.sidePanel.mode` in profile-local `chrome.storage.local`, restores it on panel load, falls back to `chat` for missing/unsupported values, and switches modes without browser restart. No new permissions, host permissions, privileged bridges, backend calls, sync storage, or business logic were added. Runtime restart persistence smoke is deferred because no local Chromium source/build exists. Task note: `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`. |
 | T11 | W4 | Add first-run shell | T10 | DONE | Created `patches/echothink/0011-first-run-gate-shell.patch` and appended `echothink/0011-first-run-gate-shell.patch` to the Echothink series tail (after `echothink/0005`). Establishes the M2 first-run **gate shell** by reusing T10's `chrome://echothink-first-run` page (no new page) and making a single narrow first-run-only edit to the `AddFirstRunTabs` block in `chrome/browser/chrome_browser_main.cc` so that on first launch the browser opens **only** the gate shell — suppressing the inherited `chrome://ungoogled-first-run` how-to tab and the normal-profile workspace / New Tab tabs (`master_prefs_->new_tabs`) before setup. The shell's primary CTAs are Sign in (`auth.echothink.ai/login`) and Enroll device (`auth.echothink.ai/device/enroll`), so first launch leads to login/enrollment. No navigation interception, auth-readiness flags, or post-setup restoration — those are owned by T20 (spec) and T21 (`echothink/0006-login-gate.patch`). No policy/pref change; no business logic; no network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools change; non-first-run startup untouched. Patch number `0011` chosen to avoid the change plan's reserved band (0004/0006–0010). Validated: `git apply --numstat` (12/3), `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0; real `patch -p1` applied cleanly against a reconstructed post-`0003` block. Task note: `docs/echothink-browser-alpha/t11-add-first-run-shell.md`. |
 | T20 | W4 | Define login gate local state and allowlist | T10, T11 | READY | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. Both prerequisites are now `DONE` (T10; and T11, merged in this change — see the T11 row above and task note `t11-add-first-run-shell.md`). The earlier `BLOCKED` state (recorded when T11 was missing) is therefore resolved and T20 may proceed. Still pending: the M4 login-gate spec itself (local auth/device readiness flags, unauthenticated navigation allowlist, blocked-navigation behavior, setup-completion criteria, diagnostics/support exceptions). T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. |
 | T21 | W5 | Implement login-required startup gate | T20 | BLOCKED | T21 cannot start because prerequisite T20 is not marked `DONE` and no final login-gate spec exists. `docs/progress.md` marks T20 `READY`, says the M4 spec is still pending, and explicitly says T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. The current T20 note is also still a blocker note and states no login-gate spec was authored. No Chromium patch was created, `patches/series` was not changed, and protected browser areas remain untouched. Task note: `docs/echothink-browser-alpha/t21-implement-login-required-startup-gate.md`. |
@@ -811,8 +812,8 @@ Implementation decisions:
   `auth.echothink.ai`, responds only to same-window bridge pings from allowed
   origins, and exposes no privileged capabilities.
 - The Side Panel shell has Chat and Workspace regions with local-only state.
-  Persisted mode selection remains T15; service-backed chat/context behavior
-  remains T16/T17/T18/T27 or later tasks.
+  Persisted mode selection has since been completed by T15; service-backed
+  chat/context behavior remains T16/T17/T18/T27 or later tasks.
 - No Chromium native patch, `patches/series` change, backend service call,
   search ranking, chat orchestration, workflow orchestration, or business page
   implementation was added.
@@ -836,7 +837,7 @@ Known limitations:
 - The extension was not loaded in a live Chromium profile in this environment.
   T12 validates source shape and local syntax only.
 - Bundling and default installation were completed by T13; see T13 Notes below.
-- Persisted Side Panel mode state remains T15.
+- Persisted Side Panel mode state has since been completed by T15.
 - Chat UI behavior, outbound scope metadata, service states, request proof
   integration, and Workspace Context rendering remain later tasks.
 
@@ -918,8 +919,9 @@ Known limitations:
 - A clean-profile browser build still needs to verify that extension ID
   `lokdibgfmiemhdoogailbfpdggndpolk` loads as a component extension by default
   and that the Side Panel opens.
-- Persisted mode state, remote chat, workspace context rendering, request proof,
-  and device identity integration remain later tasks.
+- Persisted mode state has since been completed by T15. Remote chat, workspace
+  context rendering, request proof, and device identity integration remain
+  later tasks.
 
 ## T14 Notes
 
@@ -993,9 +995,97 @@ Known limitations:
   extension action opens the Chromium Side Panel and loads extension URL
   `sidepanel.html` from bundled component extension
   `lokdibgfmiemhdoogailbfpdggndpolk`.
-- Persisted mode state remains T15.
+- Persisted mode state has since been completed by T15.
 - Chat UI behavior, outbound scope metadata, service states, request proof,
   device identity, and Workspace Context rendering remain later tasks.
+
+## T15 Notes
+
+Changed files:
+
+- `extensions/echothink-workspace/sidepanel.html` (mode selector values and
+  Workspace Context panel target)
+- `extensions/echothink-workspace/sidepanel.css` (selector text fit)
+- `extensions/echothink-workspace/sidepanel.js` (profile-local persisted mode
+  state)
+- `patches/echothink/0015-side-panel-mode-selector.patch` (new Echothink patch)
+- `patches/series` (appended
+  `echothink/0015-side-panel-mode-selector.patch` after T14)
+- `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`
+  (new task note)
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
+- `docs/progress.md` (this file)
+
+Prerequisite status:
+
+- T15 depends on T14; T14 is marked `DONE`.
+- The canonical-root mismatch is carried forward: documentation lives under
+  `echothink-studio-new/docs`; the extension source and patch artifacts live in
+  the inherited browser root beside `patches/` and `extensions/`.
+
+Implementation decisions:
+
+- Kept the mode selector inside the bundled MV3 extension shell rather than
+  adding native Chromium state plumbing.
+- Exposed exactly two active Alpha modes: `chat` and `workspace_context`. The
+  prior temporary `workspace` mode value was removed from source selector and
+  panel markup.
+- The visible top-level selector is labelled `Chat` and `Workspace Context`.
+- Stored the selected mode under `echothink.sidePanel.mode` in
+  `chrome.storage.local`; this storage is local to the extension install in the
+  current browser profile.
+- Restores the stored mode on Side Panel load, falls back to `chat` for missing
+  or unsupported stored values, and switches modes immediately in the open
+  panel without browser restart. A user click during initial storage restore
+  wins over the late restore.
+- Did not use `chrome.storage.sync`, remote account state, backend services, or
+  new permissions.
+- No new extension permissions, host permissions, privileged bridges, native
+  messaging, Web Store replacement path, backend service calls, search ranking,
+  chat orchestration, workflow orchestration, project/task business logic,
+  conversation persistence, or device/private-key handling were added.
+- Network stack, TLS validation, sandbox, renderer internals, downloads,
+  history, bookmarks, password manager, cookies, and DevTools were untouched.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "^\\| T14 \\|.*DONE" echothink-studio-new/docs/progress.md` | Passed: prerequisite T14 is marked `DONE`. |
+| `rtk python3 -m json.tool extensions/echothink-workspace/manifest.json` | Passed: manifest JSON parses. |
+| `rtk node --check extensions/echothink-workspace/background.js` | Passed. |
+| `rtk node --check extensions/echothink-workspace/content_bridge.js` | Passed. |
+| `rtk node --check extensions/echothink-workspace/sidepanel.js` | Passed. |
+| Node manifest shape check | Passed: MV3, `side_panel.default_path`, action title, exact permissions, exact host permissions, storage permission present, and no `update_url` or forbidden broad permissions matched expectations. |
+| Node side-panel storage mock | Passed: stored `workspace_context` restores on load, clicking `chat` updates `chrome.storage.local`, and panel visibility follows the selected mode. |
+| Node side-panel restore race mock | Passed: a user click made while initial storage restore is pending remains selected after the late restore resolves. |
+| Mode contract source check | Passed: active source selector exposes only `chat` and `workspace_context`; no active `data-mode="workspace"` or `data-panel="workspace"` remains. |
+| `rtk git apply --numstat patches/echothink/0015-side-panel-mode-selector.patch` | Passed: unified diff parses cleanly; reports 2 insertions in `sidepanel.css`, 25 insertions / 6 deletions in `sidepanel.html`, and 57 insertions / 3 deletions in `sidepanel.js`. |
+| `rtk python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `rtk python3 devutils/validate_config.py` | Passed, exit 0. |
+| `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `rtk git diff --check` | Passed: no whitespace errors. |
+
+Build-pipeline application command (deferred; no local Chromium checkout):
+
+- `patch -p1 < patches/echothink/0015-side-panel-mode-selector.patch` from the
+  pinned Chromium `148.0.7778.178` source root after inherited patches,
+  `echothink/0004-bundled-workspace-extension.patch`, and
+  `echothink/0014-side-panel-container.patch`, or
+  `python3 devutils/validate_patches.py --local <unmodified-chromium-src>`.
+
+Known limitations:
+
+- No local Chromium source checkout or browser build exists here, so real
+  `patch -p1` application and clean-profile restart persistence smoke testing
+  were not run.
+- A built browser still needs to verify that selecting `workspace_context`,
+  closing all browser windows, and relaunching with the same profile restores
+  Workspace Context in the Side Panel.
+- Chat UI behavior, outbound scope metadata, service states, request proof,
+  device identity, and service-rendered Workspace Context content remain later
+  tasks.
 
 ## T30 Notes
 
