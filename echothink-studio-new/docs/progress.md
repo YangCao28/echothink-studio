@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T31 added)
+Last updated: 2026-05-29 (T28 done)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -26,6 +26,7 @@ known limitations here.
 | T13 | W4 | Add bundled extension install patch | T12 | DONE | Created `patches/echothink/0004-bundled-workspace-extension.patch` and inserted it into `patches/series` between `echothink/0003-new-tab-and-first-run.patch` and `echothink/0005-default-search-provider.patch`. T12 is DONE. The patch bundles the workspace shell as a Chromium component extension, allowlists only fixed extension ID `lokdibgfmiemhdoogailbfpdggndpolk`, registers it in `ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages()`, and adds resources under `chrome/browser/resources/echothink_workspace/`. Source manifest now carries the same public key, no `update_url`, exact permissions `sidePanel`, `storage`, `tabs`, `activeTab`, `scripting`, and only Echothink-owned host permissions. No extension permission model weakening or Web Store replacement path was added. Task note: `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`. |
 | T11 | W4 | Add first-run shell | T10 | DONE | Created `patches/echothink/0011-first-run-gate-shell.patch` and appended `echothink/0011-first-run-gate-shell.patch` to the Echothink series tail (after `echothink/0005`). Establishes the M2 first-run **gate shell** by reusing T10's `chrome://echothink-first-run` page (no new page) and making a single narrow first-run-only edit to the `AddFirstRunTabs` block in `chrome/browser/chrome_browser_main.cc` so that on first launch the browser opens **only** the gate shell — suppressing the inherited `chrome://ungoogled-first-run` how-to tab and the normal-profile workspace / New Tab tabs (`master_prefs_->new_tabs`) before setup. The shell's primary CTAs are Sign in (`auth.echothink.ai/login`) and Enroll device (`auth.echothink.ai/device/enroll`), so first launch leads to login/enrollment. No navigation interception, auth-readiness flags, or post-setup restoration — those are owned by T20 (spec) and T21 (`echothink/0006-login-gate.patch`). No policy/pref change; no business logic; no network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools change; non-first-run startup untouched. Patch number `0011` chosen to avoid the change plan's reserved band (0004/0006–0010). Validated: `git apply --numstat` (12/3), `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0; real `patch -p1` applied cleanly against a reconstructed post-`0003` block. Task note: `docs/echothink-browser-alpha/t11-add-first-run-shell.md`. |
 | T20 | W4 | Define login gate local state and allowlist | T10, T11 | READY | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. Both prerequisites are now `DONE` (T10; and T11, merged in this change — see the T11 row above and task note `t11-add-first-run-shell.md`). The earlier `BLOCKED` state (recorded when T11 was missing) is therefore resolved and T20 may proceed. Still pending: the M4 login-gate spec itself (local auth/device readiness flags, unauthenticated navigation allowlist, blocked-navigation behavior, setup-completion criteria, diagnostics/support exceptions). T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. |
+| T28 | W5 | Implement optional `echo://` resolver | T10 | DONE | Task note at `docs/echothink-browser-alpha/t28-implement-optional-resolver.md`. Prerequisite T10 is DONE. Created `patches/echothink/0009-echo-protocol-router.patch` and inserted `echothink/0009-echo-protocol-router.patch` into `patches/series` after `echothink/0011-first-run-gate-shell.patch` and before `echothink/0010-windows-packaging-identity.patch`. Patch adds a narrow `chrome/browser/ui/browser_navigator.cc` navigation helper that rewrites only known `echo://` route shapes (`dashboard`, `project/{id}`, `task-wave/{id}`, `app-domain/{domain}/{instance}`, `artifact/{id}`, `approval/{id}`) to matching `https://app.echothink.ai/` URLs, accepts only unreserved non-empty segments, rejects query/fragment payloads, and clears the `echo://` referrer. No backend authorization, device proof, protected content, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Unsupported/invalid route UX remains T29. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and real `patch -p1` against the pinned Chromium `148.0.7778.178` `browser_navigator.cc` source copy all pass. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 | T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 
@@ -1112,6 +1113,71 @@ Known limitations:
   gated first launch; noted for T30/T31 packaging).
 - `chrome://echothink-diagnostics` (referenced by the reused shell) remains a
   known dead `chrome://` link until its owning task lands.
+
+## T28 Notes
+
+Changed files:
+
+- `patches/echothink/0009-echo-protocol-router.patch` (new Echothink patch)
+- `patches/series` (inserted `echothink/0009-echo-protocol-router.patch` in
+  the active Echothink tail before `echothink/0010-windows-packaging-identity.patch`)
+- `docs/echothink-browser-alpha/t28-implement-optional-resolver.md` (new task note)
+- `docs/echothink_browser_construction.md` (recorded active Alpha resolver)
+- `docs/progress.md` (this file)
+
+Prerequisite status:
+
+- T28 depends on T10.
+- T10 is marked `DONE` and its active patch
+  `patches/echothink/0003-new-tab-and-first-run.patch` remains listed in
+  `patches/series`.
+- The canonical-root mismatch (T00) is carried forward: docs live under
+  `echothink-studio-new/docs`, while active browser patches and `patches/series`
+  live in the inherited browser root one directory up.
+
+Implementation decisions:
+
+- Added a narrow resolver in `chrome/browser/ui/browser_navigator.cc` inside the
+  desktop `NavigateParams` path, before custom `echo://` navigations fall through
+  to Chromium external-protocol handling.
+- Valid route shapes map only to `https://app.echothink.ai/` paths:
+  `dashboard`, `project/{id}`, `task-wave/{id}`,
+  `app-domain/{domain}/{instance}`, `artifact/{id}`, and `approval/{id}`.
+- Route segments must be non-empty and contain only unreserved ASCII
+  characters. Query strings and fragments are rejected; `echo://dashboard/` is
+  accepted only as a host-only dashboard canonicalization alias.
+- The resolver clears the original `echo://` referrer before loading the HTTPS
+  destination.
+- The patch adds no content protocol, local workspace page, backend service,
+  authorization decision, device proof, session handling, or protected data.
+  HTTPS app/gateway services still own user authorization and device proof.
+- Unsupported/invalid route UI is deliberately deferred to T29, which owns the
+  local invalid `echo://` fallback page.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk git apply --numstat patches/echothink/0009-echo-protocol-router.patch` | Passed: `96 0 chrome/browser/ui/browser_navigator.cc`. |
+| `rtk python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `rtk python3 devutils/validate_config.py` | Passed, exit 0. |
+| `rtk patch -p1 -i .../patches/echothink/0009-echo-protocol-router.patch` from `/private/tmp/echothink-t28-chromium` with the pinned Chromium `148.0.7778.178` `browser_navigator.cc` file | Passed: patch applied cleanly to the fetched pinned source file. |
+
+Build-pipeline application command:
+
+- `patch -p1 -i patches/echothink/0009-echo-protocol-router.patch` from the
+  pinned Chromium `148.0.7778.178` source root after inherited patches and active
+  Echothink predecessors have applied.
+
+Known limitations:
+
+- No full Chromium source checkout, compile, or runtime browser smoke test was
+  run in this environment.
+- T28 does not provide invalid-route UX; T29 owns the local invalid
+  `echo://` fallback page.
+- The browser-side mapper intentionally does not accept query strings,
+  fragments, encoded path separators, or non-unreserved path characters.
 
 ## T31 Notes
 

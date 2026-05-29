@@ -1,0 +1,149 @@
+# Echothink-Patch: 0009-echo-protocol-router
+# Title: Resolve known echo routes to Echothink app URLs
+# Area: echo-router
+# Depends-On: echothink/0003-new-tab-and-first-run.patch (T28 depends on T10's browser entry/fallback route work; this patch does not depend on backend auth/device-proof implementation)
+# Browser-Layer-Reason: echo:// links are browser-shell navigation shortcuts. The browser must translate them before Chromium treats the custom scheme as an external protocol, but all protected content and authorization remain owned by HTTPS Echothink services.
+# Preferred-Surface-Checked: existing-hook, native-required (no policy/preference/extension surface can reliably rewrite typed and clicked custom-scheme navigations before external protocol handling)
+# Security-Critical-Areas: none
+# Native-Files-Touched: chrome/browser/ui/browser_navigator.cc
+# Rebase-Risk: medium (uses the desktop NavigateParams path in browser_navigator.cc before app/window routing)
+# Validation: Apply inherited patches and active Echothink predecessors, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178; launch and verify echo://dashboard, echo://project/123, echo://task-wave/abc, echo://app-domain/domain/instance, echo://artifact/file-1, and echo://approval/appr-1 navigate to matching https://app.echothink.ai/ routes. Confirm unsupported echo:// routes are not resolved by this patch and no protected content is embedded.
+#
+# Notes:
+# - This is a navigation helper only. It rewrites exact, known echo:// route
+#   shapes into HTTPS app routes under https://app.echothink.ai/.
+# - The resolver accepts only non-empty route segments made of RFC 3986
+#   unreserved characters (A-Z, a-z, 0-9, "-", ".", "_", "~") and rejects query
+#   strings/fragments. This avoids open redirects, path traversal, and hidden
+#   payloads in the browser-side route mapper.
+# - No backend authorization, device proof, session state, or protected data is
+#   checked or embedded here. The resulting HTTPS app route must still enforce
+#   user authorization and device proof server-side.
+# - Unsupported/invalid echo:// routes are intentionally left to inherited
+#   Chromium handling in T28. The local invalid-route fallback page is owned by
+#   T29 per docs/dag-doc.md.
+
+--- a/chrome/browser/ui/browser_navigator.cc
++++ b/chrome/browser/ui/browser_navigator.cc
+@@ -10,11 +10,13 @@
+ #include <string>
+ #include <string_view>
+ #include <utility>
++#include <vector>
+ 
+ #include "base/memory/raw_ptr.h"
+ #include "base/notimplemented.h"
+ #include "base/notreached.h"
++#include "base/strings/string_split.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
+@@ -143,6 +145,94 @@ bool IncognitoModeForced(const Profile*
+          policy::IncognitoModeAvailability::kForced;
+ }
+ 
++constexpr std::string_view kEchoURLPrefix = "echo://";
++constexpr std::string_view kEchothinkAppOrigin = "https://app.echothink.ai";
++
++bool IsSafeEchoRouteSegment(std::string_view segment) {
++  if (segment.empty()) {
++    return false;
++  }
++
++  for (char c : segment) {
++    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
++        (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' ||
++        c == '~') {
++      continue;
++    }
++    return false;
++  }
++  return true;
++}
++
++std::optional<GURL> BuildEchoAppURL(std::string path) {
++  std::string spec(kEchothinkAppOrigin);
++  spec.append(path.data(), path.size());
++
++  GURL resolved(spec);
++  if (!resolved.is_valid() || !resolved.SchemeIs(url::kHttpsScheme)) {
++    return std::nullopt;
++  }
++  return resolved;
++}
++
++std::optional<GURL> BuildEchoAppURLForRoute(
++    std::string_view route,
++    const std::vector<std::string_view>& route_segments) {
++  std::string path("/");
++  path.append(route.data(), route.size());
++  for (size_t i = 1; i < route_segments.size(); ++i) {
++    path.push_back('/');
++    path.append(route_segments[i].data(), route_segments[i].size());
++  }
++  return BuildEchoAppURL(std::move(path));
++}
++
++std::optional<GURL> ResolveEchoURL(const GURL& url) {
++  if (!url.SchemeIs("echo")) {
++    return std::nullopt;
++  }
++
++  const std::string spec = url.possibly_invalid_spec();
++  if (spec.size() <= kEchoURLPrefix.size() ||
++      spec.compare(0, kEchoURLPrefix.size(), kEchoURLPrefix.data(),
++                   kEchoURLPrefix.size()) != 0) {
++    return std::nullopt;
++  }
++
++  std::string_view route_spec(spec);
++  route_spec.remove_prefix(kEchoURLPrefix.size());
++  if (route_spec.find('?') != std::string_view::npos ||
++      route_spec.find('#') != std::string_view::npos) {
++    return std::nullopt;
++  }
++  if (route_spec == "dashboard/") {
++    route_spec.remove_suffix(1);
++  }
++
++  const std::vector<std::string_view> route_segments =
++      base::SplitStringPiece(route_spec, "/", base::KEEP_WHITESPACE,
++                             base::SPLIT_WANT_ALL);
++  for (std::string_view segment : route_segments) {
++    if (!IsSafeEchoRouteSegment(segment)) {
++      return std::nullopt;
++    }
++  }
++
++  const std::string_view route = route_segments[0];
++  if (route == "dashboard" && route_segments.size() == 1) {
++    return BuildEchoAppURLForRoute(route, route_segments);
++  }
++  if ((route == "project" || route == "task-wave" || route == "artifact" ||
++       route == "approval") &&
++      route_segments.size() == 2) {
++    return BuildEchoAppURLForRoute(route, route_segments);
++  }
++  if (route == "app-domain" && route_segments.size() == 3) {
++    return BuildEchoAppURLForRoute(route, route_segments);
++  }
++  return std::nullopt;
++}
++
+ // Change some of the navigation parameters based on the particular URL.
+ // Returns true on success. Otherwise, if changing params leads the browser
+ // into an erroneous state, returns false.
+@@ -573,6 +663,12 @@ base::WeakPtr<content::NavigationHandle>
+     }
+   }
+ 
++  if (std::optional<GURL> echo_url = ResolveEchoURL(params->url)) {
++    params->url = *echo_url;
++    // Do not leak the source of an echo:// shortcut as an HTTPS referrer.
++    params->referrer = content::Referrer();
++  }
++
+   // Open System Apps in their standalone window if necessary.
+   // TODO(crbug.com/40136163): Remove this code after we integrate with intent
+   // handling.

@@ -373,8 +373,18 @@ Examples:
 echo://dashboard        -> https://app.echothink.ai/dashboard
 echo://project/123      -> https://app.echothink.ai/project/123
 echo://task-wave/abc    -> https://app.echothink.ai/task-wave/abc
+echo://app-domain/domain/instance
+                        -> https://app.echothink.ai/app-domain/domain/instance
 echo://artifact/file-1  -> https://app.echothink.ai/artifact/file-1
+echo://approval/appr-1  -> https://app.echothink.ai/approval/appr-1
 ```
+
+The active Alpha resolver is
+`patches/echothink/0009-echo-protocol-router.patch`; implementation notes are in
+`docs/echothink-browser-alpha/t28-implement-optional-resolver.md`. It rewrites
+only exact known route shapes to HTTPS app URLs, clears the `echo://` referrer,
+and does not carry authorization or device-proof semantics. The invalid-route
+fallback page remains a separate T29 task.
 
 ## 6. Backend Service Contracts
 
