@@ -325,6 +325,7 @@ Alpha implementation details are recorded in:
 - `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`
 - `docs/echothink-browser-alpha/t14-implement-side-panel-container.md`
 - `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`
+- `docs/echothink-browser-alpha/t16-implement-chat-panel-shell.md`
 - `docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md`
 
 T13 bundles the extension as a Chromium component extension with fixed ID
@@ -339,6 +340,13 @@ T15 implements the local Side Panel mode selector in that bundled extension
 shell. It supports only `chat` and `workspace_context`, stores the selected
 mode in profile-local `chrome.storage.local` under
 `echothink.sidePanel.mode`, and switches modes without browser restart.
+
+T16 implements the Chat Panel shell in that same bundled extension. Chat mode
+renders an in-memory transcript and composer, exposes the Alpha scope selector,
+posts to `https://api.echothink.ai/v1/chat/stream` with selected
+`scope_type` metadata, and streams assistant response text when the endpoint
+supports it. Conversation persistence, model orchestration, request-proof
+signing, and private key handling remain outside this task.
 
 T17 implements the local Workspace Context mode shell in the bundled extension.
 It provides containers for current project context, App Domain context, Task
@@ -366,7 +374,9 @@ Mode selector:
 - Does not require a browser restart.
 
 Alpha implementation details are recorded in
-`docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`.
+`docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md` and
+`docs/echothink-browser-alpha/t16-implement-chat-panel-shell.md` and
+`docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md`.
 
 Mode 1: Chat Panel
 

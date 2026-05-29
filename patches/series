@@ -122,3 +122,4 @@ echothink/0010-windows-packaging-identity.patch
 echothink/0014-side-panel-container.patch
 echothink/0015-side-panel-mode-selector.patch
 echothink/0017-workspace-context-shell.patch
+echothink/0016-chat-panel-shell.patch
