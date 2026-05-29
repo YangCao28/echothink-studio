@@ -237,6 +237,10 @@ The bundled install patch is documented in
 loads the workspace shell as component extension ID
 `lokdibgfmiemhdoogailbfpdggndpolk` with no `update_url` and no broad host
 permissions.
+The Side Panel container entry is documented in
+`docs/echothink-browser-alpha/t14-implement-side-panel-container.md`; it keeps
+the browser UI entry in the bundled extension action and opens the local
+extension shell `sidepanel.html`.
 
 The Side Panel should provide two switchable modes. The mode selector should be
 visible at the top of the panel and preserve the user's last selected mode per
