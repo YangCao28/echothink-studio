@@ -262,6 +262,11 @@ The Workspace Context shell is documented in
 adds the required context containers and a generic text-only service snapshot
 renderer in the local extension shell without adding service calls or business
 workflow logic.
+The Side Panel local states implementation is documented in
+`docs/echothink-browser-alpha/t18-add-side-panel-local-states.md`; it adds
+signed-out, missing-device, unauthorized-scope, offline, and remote-service
+error states in the bundled extension and hides protected panel content when
+local auth/device/scope state is not authorized.
 
 The Side Panel should provide two switchable modes. The mode selector should be
 visible at the top of the panel and preserve the user's last selected mode per

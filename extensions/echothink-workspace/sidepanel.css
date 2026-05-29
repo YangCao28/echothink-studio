@@ -104,6 +104,64 @@ textarea {
   display: none;
 }
 
+.workspace-shell.is-state-pending [data-protected-content],
+[data-protected-content][hidden] {
+  display: none;
+}
+
+.local-state-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e0cfc5;
+  border-left: 3px solid #c55332;
+  border-radius: 8px;
+  background: #fff8f4;
+}
+
+.local-state-card[hidden] {
+  display: none;
+}
+
+.local-state-card strong {
+  color: #152029;
+  font-size: 14px;
+}
+
+.local-state-card p {
+  margin: 3px 0 0;
+  color: #5b4d46;
+  font-size: 12px;
+}
+
+.local-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.local-state-actions a,
+.local-state-actions button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #d4b3a2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #8a331d;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.local-state-actions a:focus-visible,
+.local-state-actions button:focus-visible {
+  outline: 2px solid #128ea1;
+  outline-offset: 2px;
+}
+
 .chat-panel {
   min-height: 0;
 }
@@ -241,6 +299,11 @@ textarea:disabled {
   overflow: auto;
   min-height: 0;
   padding-right: 2px;
+}
+
+.workspace-context-content {
+  display: grid;
+  gap: 12px;
 }
 
 .context-overview,
