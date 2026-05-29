@@ -1,9 +1,16 @@
 const SIDE_PANEL_MODE_STORAGE_KEY = "echothink.sidePanel.mode";
+const SIDE_PANEL_LOCAL_STATE_STORAGE_KEY = "echothink.sidePanel.localState";
+const SIDE_PANEL_LOCAL_STATE_UPDATE_TYPE = "echothink.sidePanel.localState.update";
 const WORKSPACE_CONTEXT_STORAGE_KEY = "echothink.workspaceContext.snapshot";
 const WORKSPACE_CONTEXT_UPDATE_TYPE = "echothink.workspaceContext.update";
 const ALPHA_MODES = Object.freeze(["chat", "workspace_context"]);
 const DEFAULT_MODE = "chat";
+const DEFAULT_LOCAL_STATE = "ready";
 const CHAT_STREAM_ENDPOINT = "https://api.echothink.ai/v1/chat/stream";
+const LOGIN_URL = "https://auth.echothink.ai/login";
+const DEVICE_ENROLLMENT_URL = "https://auth.echothink.ai/device/enroll";
+const SUPPORT_URL = "https://app.echothink.ai/support";
+const SIDEPANEL_URL = "https://app.echothink.ai/sidepanel";
 const CHAT_CLIENT = Object.freeze({
   source: "echothink_browser_side_panel",
   version: "0.1.0",
@@ -17,6 +24,60 @@ const CHAT_SCOPE_LABELS = Object.freeze({
   artifacts: "Recent artifacts",
   organization: "Organization workspace",
 });
+const LOCAL_STATE_COPY = Object.freeze({
+  ready: {
+    title: "",
+    description: "",
+    actions: [],
+  },
+  signed_out: {
+    title: "Sign in required",
+    description: "Sign in before opening Chat or Workspace Context content.",
+    actions: [
+      { label: "Sign in", href: LOGIN_URL },
+      { label: "Enroll device", href: DEVICE_ENROLLMENT_URL },
+      { label: "Support", href: SUPPORT_URL },
+    ],
+  },
+  no_device_identity: {
+    title: "Device enrollment required",
+    description: "Enroll this browser before protected workspace content is shown.",
+    actions: [
+      { label: "Enroll device", href: DEVICE_ENROLLMENT_URL },
+      { label: "Sign in", href: LOGIN_URL },
+      { label: "Support", href: SUPPORT_URL },
+    ],
+  },
+  unauthorized_scope: {
+    title: "Scope not authorized",
+    description: "This account is not authorized for the selected workspace scope.",
+    actions: [
+      { label: "Open Echothink", href: SIDEPANEL_URL },
+      { label: "Support", href: SUPPORT_URL },
+    ],
+  },
+  offline: {
+    title: "Offline",
+    description: "Reconnect to use Chat and refresh Workspace Context.",
+    actions: [
+      { label: "Retry", action: "retry" },
+      { label: "Support", href: SUPPORT_URL },
+    ],
+  },
+  remote_service_error: {
+    title: "Service unavailable",
+    description: "Echothink services did not respond. Try again or contact support.",
+    actions: [
+      { label: "Retry", action: "retry" },
+      { label: "Support", href: SUPPORT_URL },
+    ],
+  },
+});
+const BLOCKING_LOCAL_STATES = new Set([
+  "signed_out",
+  "no_device_identity",
+  "unauthorized_scope",
+]);
 const WORKSPACE_CONTEXT_SECTIONS = Object.freeze([
   "project",
   "app_domain",
@@ -29,19 +90,28 @@ const WORKSPACE_CONTEXT_SECTIONS = Object.freeze([
   "quick_actions",
 ]);
 const SERVICE_MESSAGE_ORIGINS = new Set(["https://app.echothink.ai"]);
+const LOCAL_STATE_MESSAGE_ORIGINS = new Set([
+  "https://app.echothink.ai",
+  "https://auth.echothink.ai",
+]);
 const SERVICE_LINK_ORIGINS = new Set([
   "https://app.echothink.ai",
   "https://auth.echothink.ai",
   "https://search.echothink.ai",
 ]);
 
+const workspaceShell = document.querySelector("#workspace-shell");
 const modeButtons = document.querySelectorAll("[data-mode]");
 const panels = document.querySelectorAll("[data-panel]");
 const activeTabLabel = document.querySelector("#active-tab-label");
+const localStateCard = document.querySelector("#local-state-card");
+const localStateTitle = document.querySelector("[data-local-state-title]");
+const localStateDescription = document.querySelector("[data-local-state-description]");
+const localStateActions = document.querySelector("[data-local-state-actions]");
+const protectedContent = document.querySelectorAll("[data-protected-content]");
 const scopeSelect = document.querySelector("#scope-select");
 const scopeSummary = document.querySelector("#scope-summary");
 const chatTranscript = document.querySelector("#chat-transcript");
-const chatEmptyState = document.querySelector("#chat-empty-state");
 const chatStatus = document.querySelector("#chat-status");
 const chatComposer = document.querySelector("#chat-composer");
 const messageInput = document.querySelector("#message-input");
@@ -57,6 +127,7 @@ const workspaceContextSections = new Map(
 let hasUserSelectedMode = false;
 let isSendingChatMessage = false;
 let currentActiveTab;
+let currentSidePanelLocalState = { state: DEFAULT_LOCAL_STATE, detail: "" };
 
 function isSupportedMode(mode) {
   return ALPHA_MODES.includes(mode);
@@ -68,6 +139,232 @@ function isSupportedScope(scopeType) {
 
 function getSelectedScopeType() {
   return isSupportedScope(scopeSelect?.value) ? scopeSelect.value : "current_page";
+}
+
+function isSupportedLocalState(state) {
+  return Object.hasOwn(LOCAL_STATE_COPY, state);
+}
+
+function normalizeSidePanelLocalState(value) {
+  const state = typeof value === "string" ? value : value?.state;
+  const normalizedState = isSupportedLocalState(state) ? state : DEFAULT_LOCAL_STATE;
+  const detail = typeof value === "object" ? textOrEmpty(value?.detail).slice(0, 180) : "";
+  const scopeType =
+    typeof value === "object" && isSupportedScope(value?.scope_type)
+      ? value.scope_type
+      : undefined;
+
+  return {
+    state: normalizedState,
+    detail,
+    scope_type: scopeType,
+  };
+}
+
+function isBlockingLocalState(localState = currentSidePanelLocalState) {
+  return BLOCKING_LOCAL_STATES.has(localState?.state);
+}
+
+function isChatInputBlockedByLocalState(localState = currentSidePanelLocalState) {
+  return isBlockingLocalState(localState) || localState?.state === "offline";
+}
+
+function createLocalStateAction(action) {
+  if (action.action === "retry") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = action.label;
+    button.addEventListener("click", () => {
+      retryLocalState().catch((error) => {
+        console.warn("Unable to retry side panel state", error);
+      });
+    });
+    return button;
+  }
+
+  const href = serviceLinkOrEmpty(action.href);
+  if (!href) {
+    return undefined;
+  }
+
+  const link = document.createElement("a");
+  link.href = href;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = action.label;
+  return link;
+}
+
+function renderLocalStateActions(actions) {
+  clearElement(localStateActions);
+
+  actions.forEach((action) => {
+    const actionElement = createLocalStateAction(action);
+    if (actionElement) {
+      localStateActions?.append(actionElement);
+    }
+  });
+}
+
+function ensureChatEmptyState() {
+  if (!chatTranscript || chatTranscript.querySelector("#chat-empty-state")) {
+    return;
+  }
+
+  const emptyState = document.createElement("li");
+  emptyState.className = "chat-empty-state";
+  emptyState.id = "chat-empty-state";
+  emptyState.setAttribute("role", "status");
+  emptyState.textContent = "No messages yet.";
+  chatTranscript.append(emptyState);
+}
+
+function resetChatTranscript() {
+  clearElement(chatTranscript);
+  ensureChatEmptyState();
+}
+
+function resetWorkspaceContextContent() {
+  setTextWithDefault(workspaceOverviewTitle, "");
+  setTextWithDefault(workspaceOverviewSummary, "");
+
+  workspaceContextSections.forEach((section) => {
+    const titleElement = section.querySelector("[data-context-title]");
+    const statusElement = section.querySelector("[data-context-status]");
+    const emptyElement = section.querySelector("[data-context-empty]");
+    const itemsElement = section.querySelector("[data-context-items]");
+    const actionsElement = section.querySelector("[data-context-actions]");
+
+    setTextWithDefault(titleElement, "");
+    setTextWithDefault(statusElement, "");
+    statusElement?.classList.remove("has-content");
+    setTextWithDefault(emptyElement, "");
+    if (emptyElement) {
+      emptyElement.hidden = false;
+    }
+    clearElement(itemsElement);
+    clearElement(actionsElement);
+  });
+}
+
+function clearProtectedContentForBlockingState() {
+  resetChatTranscript();
+  resetWorkspaceContextContent();
+}
+
+function applySidePanelLocalState(localState) {
+  const copy = LOCAL_STATE_COPY[localState.state] || LOCAL_STATE_COPY.ready;
+  const isReady = localState.state === DEFAULT_LOCAL_STATE;
+  const blocksProtectedContent = isBlockingLocalState(localState);
+
+  workspaceShell?.classList.remove("is-state-pending");
+  if (localStateCard) {
+    localStateCard.hidden = isReady;
+  }
+  setTextWithDefault(localStateTitle, copy.title);
+  setTextWithDefault(localStateDescription, localState.detail || copy.description);
+  renderLocalStateActions(copy.actions);
+
+  protectedContent.forEach((element) => {
+    element.hidden = blocksProtectedContent;
+  });
+
+  if (blocksProtectedContent) {
+    clearProtectedContentForBlockingState();
+  }
+
+  if (messageInput) {
+    messageInput.disabled = isChatInputBlockedByLocalState(localState);
+  }
+
+  updateSendButtonState();
+}
+
+async function readStoredLocalState() {
+  if (!globalThis.chrome?.storage?.local?.get) {
+    return normalizeSidePanelLocalState(DEFAULT_LOCAL_STATE);
+  }
+
+  const storedValues = await globalThis.chrome.storage.local.get(
+    SIDE_PANEL_LOCAL_STATE_STORAGE_KEY,
+  );
+  return normalizeSidePanelLocalState(storedValues?.[SIDE_PANEL_LOCAL_STATE_STORAGE_KEY]);
+}
+
+async function persistLocalState(localState) {
+  if (!globalThis.chrome?.storage?.local?.set) {
+    return;
+  }
+
+  await globalThis.chrome.storage.local.set({
+    [SIDE_PANEL_LOCAL_STATE_STORAGE_KEY]: localState,
+  });
+}
+
+async function setSidePanelLocalState(value, options = {}) {
+  const nextState =
+    value?.state !== "offline" && navigator.onLine === false
+      ? normalizeSidePanelLocalState("offline")
+      : normalizeSidePanelLocalState(value);
+
+  currentSidePanelLocalState = nextState;
+  applySidePanelLocalState(nextState);
+
+  if (options.persist === false || nextState.state === "offline") {
+    return nextState;
+  }
+
+  await persistLocalState(nextState);
+  return nextState;
+}
+
+async function initializeLocalState() {
+  const storedState = await readStoredLocalState();
+  await setSidePanelLocalState(storedState, { persist: false });
+}
+
+async function retryLocalState() {
+  if (navigator.onLine === false) {
+    await setSidePanelLocalState("offline", { persist: false });
+    return;
+  }
+
+  const storedState = await readStoredLocalState();
+  const nextState =
+    storedState.state === "remote_service_error"
+      ? normalizeSidePanelLocalState(DEFAULT_LOCAL_STATE)
+      : storedState;
+  await setSidePanelLocalState(nextState, {
+    persist: storedState.state === "remote_service_error",
+  });
+
+  if (!isBlockingLocalState()) {
+    await initializeWorkspaceContext();
+  }
+}
+
+function localStateForChatResponse(response) {
+  const serviceState =
+    response.headers.get("x-echothink-state") ||
+    response.headers.get("x-echothink-error");
+
+  if (/device|enroll/i.test(serviceState || "")) {
+    return "no_device_identity";
+  }
+
+  if (response.status === 401) {
+    return "signed_out";
+  }
+
+  if (response.status === 403) {
+    return "unauthorized_scope";
+  }
+
+  if (response.status === 412 || response.status === 428) {
+    return "no_device_identity";
+  }
+
+  return "remote_service_error";
 }
 
 function setMode(mode) {
@@ -100,7 +397,10 @@ function updateSendButtonState() {
     return;
   }
 
-  sendButton.disabled = isSendingChatMessage || messageInput.value.trim() === "";
+  const inputBlocked = isChatInputBlockedByLocalState();
+  messageInput.disabled = inputBlocked;
+  sendButton.disabled =
+    inputBlocked || isSendingChatMessage || messageInput.value.trim() === "";
 }
 
 function sanitizePageUrl(url) {
@@ -150,7 +450,7 @@ function appendChatMessage(role, text = "") {
     return undefined;
   }
 
-  chatEmptyState?.remove();
+  chatTranscript.querySelector("#chat-empty-state")?.remove();
 
   const messageItem = document.createElement("li");
   const roleLabel = document.createElement("strong");
@@ -335,15 +635,9 @@ async function renderChatResponse(response, messageBody) {
 }
 
 function getChatErrorMessage(response) {
-  if (response.status === 401) {
-    return "Sign in required.";
-  }
-
-  if (response.status === 403) {
-    return "Scope not authorized.";
-  }
-
-  return "Chat service error.";
+  const localState = localStateForChatResponse(response);
+  const copy = LOCAL_STATE_COPY[localState] || LOCAL_STATE_COPY.remote_service_error;
+  return copy.description || "Chat service error.";
 }
 
 async function getActiveTab() {
@@ -360,7 +654,7 @@ async function getActiveTab() {
 }
 
 async function submitChatMessage(message) {
-  if (isSendingChatMessage) {
+  if (isSendingChatMessage || isChatInputBlockedByLocalState()) {
     return;
   }
 
@@ -385,24 +679,33 @@ async function submitChatMessage(message) {
     });
 
     if (!response.ok) {
-      assistantMessage.textContent = getChatErrorMessage(response);
-      setChatStatus(getChatErrorMessage(response), { kind: "error" });
+      const localState = localStateForChatResponse(response);
+      const errorMessage = getChatErrorMessage(response);
+      assistantMessage.textContent = errorMessage;
+      setChatStatus(errorMessage, { kind: "error" });
+      await setSidePanelLocalState(localState);
       return;
     }
 
+    await setSidePanelLocalState(DEFAULT_LOCAL_STATE);
     await renderChatResponse(response, assistantMessage);
     setChatStatus("");
   } catch (error) {
-    assistantMessage.textContent = navigator.onLine
-      ? "Unable to reach chat service."
-      : "Offline.";
+    const localState = navigator.onLine ? "remote_service_error" : "offline";
+    const copy = LOCAL_STATE_COPY[localState];
+    assistantMessage.textContent = copy.description;
     setChatStatus(assistantMessage.textContent, { kind: "error" });
+    await setSidePanelLocalState(localState, {
+      persist: localState !== "offline",
+    });
     console.warn("Unable to send chat message", error);
   } finally {
     isSendingChatMessage = false;
-    messageInput.value = "";
+    if (messageInput) {
+      messageInput.value = "";
+    }
     updateSendButtonState();
-    messageInput.focus();
+    messageInput?.focus();
   }
 }
 
@@ -616,6 +919,22 @@ function renderWorkspaceContext(snapshot) {
     return;
   }
 
+  const snapshotLocalState = snapshot.local_state || snapshot.localState;
+  if (snapshotLocalState) {
+    const normalizedState = normalizeSidePanelLocalState(snapshotLocalState);
+    setSidePanelLocalState(normalizedState).catch((error) => {
+      console.warn("Unable to store workspace context state", error);
+    });
+
+    if (isBlockingLocalState(normalizedState)) {
+      return;
+    }
+  }
+
+  if (isBlockingLocalState()) {
+    return;
+  }
+
   const overview = snapshot.overview || {};
   setTextWithDefault(workspaceOverviewTitle, overview.title || snapshot.title);
   setTextWithDefault(workspaceOverviewSummary, overview.summary || snapshot.summary);
@@ -638,6 +957,10 @@ async function readWorkspaceContextSnapshot() {
 }
 
 async function initializeWorkspaceContext() {
+  if (isBlockingLocalState()) {
+    return;
+  }
+
   const snapshot = await readWorkspaceContextSnapshot();
   if (snapshot) {
     renderWorkspaceContext(snapshot);
@@ -651,6 +974,18 @@ function isAllowedWorkspaceContextSender(sender) {
 
   try {
     return SERVICE_MESSAGE_ORIGINS.has(new URL(sender.url).origin);
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedLocalStateSender(sender) {
+  if (!sender?.url) {
+    return true;
+  }
+
+  try {
+    return LOCAL_STATE_MESSAGE_ORIGINS.has(new URL(sender.url).origin);
   } catch {
     return false;
   }
@@ -707,7 +1042,29 @@ scopeSelect?.addEventListener("change", () => {
   updateScopeSummary();
 });
 
+globalThis.addEventListener?.("offline", () => {
+  setSidePanelLocalState("offline", { persist: false }).catch((error) => {
+    console.warn("Unable to set offline side panel state", error);
+  });
+});
+
+globalThis.addEventListener?.("online", () => {
+  retryLocalState().catch((error) => {
+    console.warn("Unable to refresh side panel state", error);
+  });
+});
+
 globalThis.chrome?.runtime?.onMessage?.addListener?.((message, sender) => {
+  if (
+    message?.type === SIDE_PANEL_LOCAL_STATE_UPDATE_TYPE &&
+    isAllowedLocalStateSender(sender)
+  ) {
+    setSidePanelLocalState(message.payload).catch((error) => {
+      console.warn("Unable to update side panel state", error);
+    });
+    return;
+  }
+
   if (
     message?.type !== WORKSPACE_CONTEXT_UPDATE_TYPE ||
     !isAllowedWorkspaceContextSender(sender)
@@ -728,9 +1085,12 @@ initializeMode().catch((error) => {
   setMode(DEFAULT_MODE);
 });
 
-initializeWorkspaceContext().catch((error) => {
-  console.warn("Unable to read workspace context snapshot", error);
-});
+initializeLocalState()
+  .then(initializeWorkspaceContext)
+  .catch((error) => {
+    console.warn("Unable to initialize side panel state", error);
+    workspaceShell?.classList.remove("is-state-pending");
+  });
 
 updateScopeSummary();
 updateSendButtonState();

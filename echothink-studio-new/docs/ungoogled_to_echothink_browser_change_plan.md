@@ -327,6 +327,7 @@ Alpha implementation details are recorded in:
 - `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`
 - `docs/echothink-browser-alpha/t16-implement-chat-panel-shell.md`
 - `docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md`
+- `docs/echothink-browser-alpha/t18-add-side-panel-local-states.md`
 
 T13 bundles the extension as a Chromium component extension with fixed ID
 `lokdibgfmiemhdoogailbfpdggndpolk`, no `update_url`, and the same narrow
@@ -356,6 +357,12 @@ available structured service snapshot from extension-local storage or an
 internal extension message, but it does not fetch services, execute workflows,
 or implement approval/project/task business logic.
 
+T18 adds resilient local Side Panel states in the bundled extension for signed
+out, no device identity, unauthorized scope, offline, and remote service error.
+Signed-out, missing-device, and unauthorized states hide and reset protected
+Chat and Workspace Context content while keeping setup/support recovery links
+available.
+
 Acceptance:
 
 - Extension is installed by default with the browser.
@@ -376,7 +383,8 @@ Mode selector:
 Alpha implementation details are recorded in
 `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md` and
 `docs/echothink-browser-alpha/t16-implement-chat-panel-shell.md` and
-`docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md`.
+`docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md` and
+`docs/echothink-browser-alpha/t18-add-side-panel-local-states.md`.
 
 Mode 1: Chat Panel
 
