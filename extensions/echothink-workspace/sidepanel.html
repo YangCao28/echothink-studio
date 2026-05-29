@@ -63,29 +63,171 @@
       </section>
 
       <section
-        class="panel-region is-hidden"
+        class="panel-region workspace-context is-hidden"
         id="workspace-context-panel"
         data-panel="workspace_context"
         role="tabpanel"
       >
-        <ul class="context-list">
-          <li>
-            <span>Project</span>
-            <strong>Unavailable</strong>
-          </li>
-          <li>
-            <span>Task Wave</span>
-            <strong>Unavailable</strong>
-          </li>
-          <li>
-            <span>Approvals</span>
-            <strong>Unavailable</strong>
-          </li>
-          <li>
-            <span>Artifacts</span>
-            <strong>Unavailable</strong>
-          </li>
-        </ul>
+        <div class="context-overview" data-workspace-context-root>
+          <span class="context-eyebrow">Workspace Context</span>
+          <strong data-context-overview-title>Waiting for service content</strong>
+          <p data-context-overview-summary>
+            Echothink service-rendered context appears here when available.
+          </p>
+        </div>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-project-title"
+          data-context-section="project"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">Current Project</span>
+              <h2 id="context-project-title" data-context-title>Project context</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for project context.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-app-domain-title"
+          data-context-section="app_domain"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">App Domain</span>
+              <h2 id="context-app-domain-title" data-context-title>Domain context</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for App Domain context.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-task-wave-title"
+          data-context-section="task_wave"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">Task Wave</span>
+              <h2 id="context-task-wave-title" data-context-title>Wave status</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for Task Wave status.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-agent-console-title"
+          data-context-section="agent_console"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">Agent Console</span>
+              <h2 id="context-agent-console-title" data-context-title>Console entry</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for agent console entry.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-approvals-title"
+          data-context-section="approvals"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">Approvals</span>
+              <h2 id="context-approvals-title" data-context-title>Pending approvals</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for pending approvals.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-artifacts-title"
+          data-context-section="artifacts"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">Artifacts</span>
+              <h2 id="context-artifacts-title" data-context-title>Recent artifacts</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for recent artifacts.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-navigation-title"
+          data-context-section="navigation"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">Navigation</span>
+              <h2 id="context-navigation-title" data-context-title>Project navigation</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for project navigation.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-notifications-title"
+          data-context-section="notifications"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">Notifications</span>
+              <h2 id="context-notifications-title" data-context-title>Notifications</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for notifications.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
+
+        <section
+          class="context-section"
+          aria-labelledby="context-quick-actions-title"
+          data-context-section="quick_actions"
+        >
+          <header class="context-section-header">
+            <div>
+              <span class="context-eyebrow">Actions</span>
+              <h2 id="context-quick-actions-title" data-context-title>Quick actions</h2>
+            </div>
+            <span class="context-status" data-context-status>Unavailable</span>
+          </header>
+          <p class="context-empty" data-context-empty>Waiting for quick actions.</p>
+          <ul class="context-items" data-context-items></ul>
+          <div class="context-actions" data-context-actions></div>
+        </section>
       </section>
 
       <footer class="workspace-footer">

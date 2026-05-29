@@ -175,34 +175,150 @@ textarea:disabled {
   opacity: 0.55;
 }
 
-.context-list {
-  display: grid;
-  gap: 8px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
+.workspace-context {
+  overflow: auto;
+  min-height: 0;
+  padding-right: 2px;
 }
 
-.context-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 46px;
-  padding: 0 12px;
+.context-overview,
+.context-section {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
   border: 1px solid #d9e2e7;
   border-radius: 8px;
   background: #ffffff;
 }
 
-.context-list span {
-  color: #40505a;
-  font-size: 13px;
+.context-overview {
+  border-left: 3px solid #128ea1;
 }
 
-.context-list strong {
-  color: #8a4f13;
+.context-overview strong {
+  font-size: 14px;
+}
+
+.context-overview p {
+  margin: 0;
+  color: #62717d;
   font-size: 12px;
+}
+
+.context-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.context-eyebrow {
+  color: #62717d;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.context-section h2 {
+  margin: 2px 0 0;
+  color: #152029;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.context-status {
+  flex: 0 0 auto;
+  max-width: 110px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #f4f0e8;
+  color: #7a4a10;
+  font-size: 11px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.context-status.has-content {
+  background: #e8f4ee;
+  color: #17613a;
+}
+
+.context-empty {
+  margin: 0;
+  color: #62717d;
+  font-size: 12px;
+}
+
+.context-items {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.context-items:empty,
+.context-actions:empty {
+  display: none;
+}
+
+.context-item {
+  display: grid;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px solid #edf3f5;
+}
+
+.context-item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.context-item strong {
+  color: #152029;
+  font-size: 12px;
+}
+
+.context-item span {
+  color: #40505a;
+  font-size: 12px;
+}
+
+.context-item small {
+  color: #62717d;
+  font-size: 11px;
+}
+
+.context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.context-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #bfd7de;
+  border-radius: 8px;
+  background: #f7fbfc;
+  color: #0f5e6a;
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.context-action:focus-visible {
+  outline: 2px solid #128ea1;
+  outline-offset: 2px;
+}
+
+.context-action[aria-disabled="true"] {
+  border-color: #d9e2e7;
+  background: #f7f9fa;
+  color: #62717d;
 }
 
 .workspace-footer {

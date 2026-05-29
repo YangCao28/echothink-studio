@@ -1,0 +1,660 @@
+# Echothink-Patch: 0017-workspace-context-shell
+# Title: Add the Workspace Context side panel shell
+# Area: extension
+# Depends-On: echothink/0004-bundled-workspace-extension.patch, echothink/0015-side-panel-mode-selector.patch
+# Browser-Layer-Reason: The bundled workspace side panel needs a local Workspace Context mode shell so the browser can expose project, domain, wave, approval, artifact, navigation, notification, and action containers before service orchestration exists. Keeping the shell in the MV3 extension avoids native Chromium UI rewrites.
+# Preferred-Surface-Checked: extension (local sidepanel.html/sidepanel.css/sidepanel.js UI)
+# Security-Critical-Areas: none
+# Native-Files-Touched: chrome/browser/resources/echothink_workspace/sidepanel.html, chrome/browser/resources/echothink_workspace/sidepanel.css, chrome/browser/resources/echothink_workspace/sidepanel.js
+# Rebase-Risk: low (updates only bundled extension resource files added by echothink/0004)
+# Validation: Apply inherited patches, then echothink/0001..0005 and later tail patches including echothink/0014, echothink/0015, and this patch with `patch -p1` against pinned Chromium 148.0.7778.178; launch a fresh profile, open the Side Panel, switch to Workspace Context, and verify all required shell sections render without backend availability.
+#
+# Notes:
+# - This patch adds UI containers only. It does not add backend calls, workflow
+#   orchestration, approval execution, project/task business logic, privileged
+#   bridges, extension permissions, or host permissions.
+# - The generic renderer accepts a structured snapshot already available through
+#   extension-local storage or internal extension messages and writes textContent
+#   only. Links are limited to Echothink-owned HTTPS origins.
+
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.css
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.css
+@@ -175,34 +175,150 @@ textarea:disabled {
+   opacity: 0.55;
+ }
+ 
+-.context-list {
++.workspace-context {
++  overflow: auto;
++  min-height: 0;
++  padding-right: 2px;
++}
++
++.context-overview,
++.context-section {
+   display: grid;
+   gap: 8px;
+-  padding: 0;
++  padding: 12px;
++  border: 1px solid #d9e2e7;
++  border-radius: 8px;
++  background: #ffffff;
++}
++
++.context-overview {
++  border-left: 3px solid #128ea1;
++}
++
++.context-overview strong {
++  font-size: 14px;
++}
++
++.context-overview p {
+   margin: 0;
+-  list-style: none;
++  color: #62717d;
++  font-size: 12px;
+ }
+ 
+-.context-list li {
++.context-section-header {
+   display: flex;
+-  align-items: center;
++  align-items: flex-start;
+   justify-content: space-between;
+   gap: 10px;
+-  min-height: 46px;
+-  padding: 0 12px;
+-  border: 1px solid #d9e2e7;
+-  border-radius: 8px;
+-  background: #ffffff;
+ }
+ 
+-.context-list span {
++.context-eyebrow {
++  color: #62717d;
++  font-size: 11px;
++  font-weight: 750;
++  letter-spacing: 0;
++  text-transform: uppercase;
++}
++
++.context-section h2 {
++  margin: 2px 0 0;
++  color: #152029;
++  font-size: 14px;
++  font-weight: 750;
++}
++
++.context-status {
++  flex: 0 0 auto;
++  max-width: 110px;
++  padding: 3px 7px;
++  border-radius: 999px;
++  background: #f4f0e8;
++  color: #7a4a10;
++  font-size: 11px;
++  font-weight: 750;
++  overflow-wrap: anywhere;
++}
++
++.context-status.has-content {
++  background: #e8f4ee;
++  color: #17613a;
++}
++
++.context-empty {
++  margin: 0;
++  color: #62717d;
++  font-size: 12px;
++}
++
++.context-items {
++  display: grid;
++  gap: 6px;
++  padding: 0;
++  margin: 0;
++  list-style: none;
++}
++
++.context-items:empty,
++.context-actions:empty {
++  display: none;
++}
++
++.context-item {
++  display: grid;
++  gap: 2px;
++  padding-top: 6px;
++  border-top: 1px solid #edf3f5;
++}
++
++.context-item:first-child {
++  padding-top: 0;
++  border-top: 0;
++}
++
++.context-item strong {
++  color: #152029;
++  font-size: 12px;
++}
++
++.context-item span {
+   color: #40505a;
+-  font-size: 13px;
++  font-size: 12px;
++}
++
++.context-item small {
++  color: #62717d;
++  font-size: 11px;
++}
++
++.context-actions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 6px;
+ }
+ 
+-.context-list strong {
+-  color: #8a4f13;
++.context-action {
++  display: inline-flex;
++  align-items: center;
++  min-height: 30px;
++  padding: 0 10px;
++  border: 1px solid #bfd7de;
++  border-radius: 8px;
++  background: #f7fbfc;
++  color: #0f5e6a;
+   font-size: 12px;
++  font-weight: 750;
++  text-decoration: none;
++}
++
++.context-action:focus-visible {
++  outline: 2px solid #128ea1;
++  outline-offset: 2px;
++}
++
++.context-action[aria-disabled="true"] {
++  border-color: #d9e2e7;
++  background: #f7f9fa;
++  color: #62717d;
+ }
+ 
+ .workspace-footer {
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.html
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.html
+@@ -63,29 +63,171 @@
+       </section>
+ 
+       <section
+-        class="panel-region is-hidden"
++        class="panel-region workspace-context is-hidden"
+         id="workspace-context-panel"
+         data-panel="workspace_context"
+         role="tabpanel"
+       >
+-        <ul class="context-list">
+-          <li>
+-            <span>Project</span>
+-            <strong>Unavailable</strong>
+-          </li>
+-          <li>
+-            <span>Task Wave</span>
+-            <strong>Unavailable</strong>
+-          </li>
+-          <li>
+-            <span>Approvals</span>
+-            <strong>Unavailable</strong>
+-          </li>
+-          <li>
+-            <span>Artifacts</span>
+-            <strong>Unavailable</strong>
+-          </li>
+-        </ul>
++        <div class="context-overview" data-workspace-context-root>
++          <span class="context-eyebrow">Workspace Context</span>
++          <strong data-context-overview-title>Waiting for service content</strong>
++          <p data-context-overview-summary>
++            Echothink service-rendered context appears here when available.
++          </p>
++        </div>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-project-title"
++          data-context-section="project"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">Current Project</span>
++              <h2 id="context-project-title" data-context-title>Project context</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for project context.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-app-domain-title"
++          data-context-section="app_domain"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">App Domain</span>
++              <h2 id="context-app-domain-title" data-context-title>Domain context</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for App Domain context.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-task-wave-title"
++          data-context-section="task_wave"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">Task Wave</span>
++              <h2 id="context-task-wave-title" data-context-title>Wave status</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for Task Wave status.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-agent-console-title"
++          data-context-section="agent_console"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">Agent Console</span>
++              <h2 id="context-agent-console-title" data-context-title>Console entry</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for agent console entry.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-approvals-title"
++          data-context-section="approvals"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">Approvals</span>
++              <h2 id="context-approvals-title" data-context-title>Pending approvals</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for pending approvals.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-artifacts-title"
++          data-context-section="artifacts"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">Artifacts</span>
++              <h2 id="context-artifacts-title" data-context-title>Recent artifacts</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for recent artifacts.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-navigation-title"
++          data-context-section="navigation"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">Navigation</span>
++              <h2 id="context-navigation-title" data-context-title>Project navigation</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for project navigation.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-notifications-title"
++          data-context-section="notifications"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">Notifications</span>
++              <h2 id="context-notifications-title" data-context-title>Notifications</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for notifications.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
++
++        <section
++          class="context-section"
++          aria-labelledby="context-quick-actions-title"
++          data-context-section="quick_actions"
++        >
++          <header class="context-section-header">
++            <div>
++              <span class="context-eyebrow">Actions</span>
++              <h2 id="context-quick-actions-title" data-context-title>Quick actions</h2>
++            </div>
++            <span class="context-status" data-context-status>Unavailable</span>
++          </header>
++          <p class="context-empty" data-context-empty>Waiting for quick actions.</p>
++          <ul class="context-items" data-context-items></ul>
++          <div class="context-actions" data-context-actions></div>
++        </section>
+       </section>
+ 
+       <footer class="workspace-footer">
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.js
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.js
+@@ -1,10 +1,37 @@
+ const SIDE_PANEL_MODE_STORAGE_KEY = "echothink.sidePanel.mode";
++const WORKSPACE_CONTEXT_STORAGE_KEY = "echothink.workspaceContext.snapshot";
++const WORKSPACE_CONTEXT_UPDATE_TYPE = "echothink.workspaceContext.update";
+ const ALPHA_MODES = Object.freeze(["chat", "workspace_context"]);
+ const DEFAULT_MODE = "chat";
++const WORKSPACE_CONTEXT_SECTIONS = Object.freeze([
++  "project",
++  "app_domain",
++  "task_wave",
++  "agent_console",
++  "approvals",
++  "artifacts",
++  "navigation",
++  "notifications",
++  "quick_actions",
++]);
++const SERVICE_MESSAGE_ORIGINS = new Set(["https://app.echothink.ai"]);
++const SERVICE_LINK_ORIGINS = new Set([
++  "https://app.echothink.ai",
++  "https://auth.echothink.ai",
++  "https://search.echothink.ai",
++]);
+ 
+ const modeButtons = document.querySelectorAll("[data-mode]");
+ const panels = document.querySelectorAll("[data-panel]");
+ const activeTabLabel = document.querySelector("#active-tab-label");
++const workspaceOverviewTitle = document.querySelector("[data-context-overview-title]");
++const workspaceOverviewSummary = document.querySelector("[data-context-overview-summary]");
++const workspaceContextSections = new Map(
++  Array.from(document.querySelectorAll("[data-context-section]")).map((section) => [
++    section.dataset.contextSection,
++    section,
++  ]),
++);
+ let hasUserSelectedMode = false;
+ 
+ function isSupportedMode(mode) {
+@@ -57,6 +84,214 @@ async function initializeMode() {
+   }
+ }
+ 
++function textOrEmpty(value) {
++  return typeof value === "string" ? value.trim() : "";
++}
++
++function defaultText(element) {
++  if (!element) {
++    return "";
++  }
++
++  if (!element.dataset.defaultText) {
++    element.dataset.defaultText = element.textContent.trim();
++  }
++
++  return element.dataset.defaultText;
++}
++
++function setTextWithDefault(element, value) {
++  if (!element) {
++    return;
++  }
++
++  element.textContent = textOrEmpty(value) || defaultText(element);
++}
++
++function clearElement(element) {
++  if (!element) {
++    return;
++  }
++
++  while (element.firstChild) {
++    element.firstChild.remove();
++  }
++}
++
++function serviceLinkOrEmpty(value) {
++  const candidate = textOrEmpty(value);
++  if (!candidate) {
++    return "";
++  }
++
++  try {
++    const url = new URL(candidate);
++    return SERVICE_LINK_ORIGINS.has(url.origin) ? url.href : "";
++  } catch {
++    return "";
++  }
++}
++
++function sectionSnapshotFrom(snapshot, sectionId) {
++  const sections = snapshot?.sections;
++  if (Array.isArray(sections)) {
++    return sections.find((section) => section?.id === sectionId) || {};
++  }
++
++  return sections?.[sectionId] || {};
++}
++
++function renderContextItems(container, items) {
++  clearElement(container);
++
++  if (!Array.isArray(items)) {
++    return 0;
++  }
++
++  items.slice(0, 8).forEach((item) => {
++    const label = textOrEmpty(item?.label || item?.title || item?.name);
++    const value = textOrEmpty(item?.value || item?.summary || item?.status);
++    const meta = textOrEmpty(item?.meta || item?.detail || item?.description);
++
++    if (!label && !value && !meta) {
++      return;
++    }
++
++    const row = document.createElement("li");
++    row.className = "context-item";
++
++    if (label) {
++      const labelElement = document.createElement("strong");
++      labelElement.textContent = label;
++      row.append(labelElement);
++    }
++
++    if (value) {
++      const valueElement = document.createElement("span");
++      valueElement.textContent = value;
++      row.append(valueElement);
++    }
++
++    if (meta) {
++      const metaElement = document.createElement("small");
++      metaElement.textContent = meta;
++      row.append(metaElement);
++    }
++
++    container?.append(row);
++  });
++
++  return container?.childElementCount || 0;
++}
++
++function renderContextActions(container, actions) {
++  clearElement(container);
++
++  if (!Array.isArray(actions)) {
++    return 0;
++  }
++
++  actions.slice(0, 6).forEach((action) => {
++    const label = textOrEmpty(action?.label || action?.title);
++    if (!label) {
++      return;
++    }
++
++    const href = serviceLinkOrEmpty(action?.href || action?.url);
++    const actionElement = href
++      ? document.createElement("a")
++      : document.createElement("span");
++    actionElement.className = "context-action";
++    actionElement.textContent = label;
++
++    if (href) {
++      actionElement.href = href;
++      actionElement.target = "_blank";
++      actionElement.rel = "noreferrer";
++    } else {
++      actionElement.setAttribute("aria-disabled", "true");
++    }
++
++    container?.append(actionElement);
++  });
++
++  return container?.childElementCount || 0;
++}
++
++function renderWorkspaceContextSection(sectionId, sectionSnapshot) {
++  const section = workspaceContextSections.get(sectionId);
++  if (!section) {
++    return;
++  }
++
++  const titleElement = section.querySelector("[data-context-title]");
++  const statusElement = section.querySelector("[data-context-status]");
++  const emptyElement = section.querySelector("[data-context-empty]");
++  const itemsElement = section.querySelector("[data-context-items]");
++  const actionsElement = section.querySelector("[data-context-actions]");
++  const title = textOrEmpty(sectionSnapshot?.title);
++  const status = textOrEmpty(sectionSnapshot?.status);
++  const summary = textOrEmpty(sectionSnapshot?.summary || sectionSnapshot?.description);
++  const renderedItemCount = renderContextItems(itemsElement, sectionSnapshot?.items);
++  const renderedActionCount = renderContextActions(actionsElement, sectionSnapshot?.actions);
++  const hasContent =
++    Boolean(title || status || summary) || renderedItemCount > 0 || renderedActionCount > 0;
++
++  setTextWithDefault(titleElement, title);
++  setTextWithDefault(statusElement, status || (hasContent ? "Available" : ""));
++  statusElement?.classList.toggle("has-content", hasContent);
++
++  if (emptyElement) {
++    emptyElement.textContent = summary || defaultText(emptyElement);
++    emptyElement.hidden = hasContent && !summary;
++  }
++}
++
++function renderWorkspaceContext(snapshot) {
++  if (!snapshot || typeof snapshot !== "object") {
++    return;
++  }
++
++  const overview = snapshot.overview || {};
++  setTextWithDefault(workspaceOverviewTitle, overview.title || snapshot.title);
++  setTextWithDefault(workspaceOverviewSummary, overview.summary || snapshot.summary);
++
++  WORKSPACE_CONTEXT_SECTIONS.forEach((sectionId) => {
++    renderWorkspaceContextSection(sectionId, sectionSnapshotFrom(snapshot, sectionId));
++  });
++}
++
++async function readWorkspaceContextSnapshot() {
++  if (!globalThis.chrome?.storage?.local?.get) {
++    return null;
++  }
++
++  const storedValues = await globalThis.chrome.storage.local.get(
++    WORKSPACE_CONTEXT_STORAGE_KEY,
++  );
++  const snapshot = storedValues?.[WORKSPACE_CONTEXT_STORAGE_KEY];
++  return snapshot && typeof snapshot === "object" ? snapshot : null;
++}
++
++async function initializeWorkspaceContext() {
++  const snapshot = await readWorkspaceContextSnapshot();
++  if (snapshot) {
++    renderWorkspaceContext(snapshot);
++  }
++}
++
++function isAllowedWorkspaceContextSender(sender) {
++  if (!sender?.url) {
++    return true;
++  }
++
++  try {
++    return SERVICE_MESSAGE_ORIGINS.has(new URL(sender.url).origin);
++  } catch {
++    return false;
++  }
++}
++
+ async function updateActiveTabLabel() {
+   if (!globalThis.chrome?.tabs?.query || !activeTabLabel) {
+     return;
+@@ -92,6 +327,17 @@ document.querySelector(".composer")?.addEventListener("submit", (event) => {
+   event.preventDefault();
+ });
+ 
++globalThis.chrome?.runtime?.onMessage?.addListener?.((message, sender) => {
++  if (
++    message?.type !== WORKSPACE_CONTEXT_UPDATE_TYPE ||
++    !isAllowedWorkspaceContextSender(sender)
++  ) {
++    return;
++  }
++
++  renderWorkspaceContext(message.payload);
++});
++
+ updateActiveTabLabel().catch((error) => {
+   console.warn("Unable to read active tab", error);
+ });
+@@ -100,3 +346,7 @@ initializeMode().catch((error) => {
+   console.warn("Unable to read side panel mode", error);
+   setMode(DEFAULT_MODE);
+ });
++
++initializeWorkspaceContext().catch((error) => {
++  console.warn("Unable to read workspace context snapshot", error);
++});

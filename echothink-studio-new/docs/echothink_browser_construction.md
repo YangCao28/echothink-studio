@@ -251,6 +251,11 @@ The Side Panel mode selector is documented in
 `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`; it
 uses local extension storage to persist exactly `chat` or
 `workspace_context` per profile.
+The Workspace Context shell is documented in
+`docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md`; it
+adds the required context containers and a generic text-only service snapshot
+renderer in the local extension shell without adding service calls or business
+workflow logic.
 
 The Side Panel should provide two switchable modes. The mode selector should be
 visible at the top of the panel and preserve the user's last selected mode per
@@ -284,6 +289,11 @@ Mode 2: Workspace Context
 - Project navigation
 - Notifications
 - Quick actions
+
+For Alpha, T17 implements these as local extension containers that can render a
+structured snapshot already supplied by Echothink services through later
+integration work. It does not make project, task-wave, approval, notification,
+artifact, navigation, or quick-action decisions inside the extension.
 
 The Side Panel must not contain heavy business logic. It should render service
 UI and call backend APIs through authenticated, device-bound requests.

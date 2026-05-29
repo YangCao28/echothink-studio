@@ -325,6 +325,7 @@ Alpha implementation details are recorded in:
 - `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`
 - `docs/echothink-browser-alpha/t14-implement-side-panel-container.md`
 - `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`
+- `docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md`
 
 T13 bundles the extension as a Chromium component extension with fixed ID
 `lokdibgfmiemhdoogailbfpdggndpolk`, no `update_url`, and the same narrow
@@ -338,6 +339,14 @@ T15 implements the local Side Panel mode selector in that bundled extension
 shell. It supports only `chat` and `workspace_context`, stores the selected
 mode in profile-local `chrome.storage.local` under
 `echothink.sidePanel.mode`, and switches modes without browser restart.
+
+T17 implements the local Workspace Context mode shell in the bundled extension.
+It provides containers for current project context, App Domain context, Task
+Wave status, agent console entry, pending approvals, recent artifacts, project
+navigation, notifications, and quick actions. It can render an already
+available structured service snapshot from extension-local storage or an
+internal extension message, but it does not fetch services, execute workflows,
+or implement approval/project/task business logic.
 
 Acceptance:
 
@@ -391,6 +400,11 @@ Mode 2: Workspace Context
 - Project navigation
 - Notifications
 - Quick actions
+
+Alpha implementation detail: T17 provides these as local extension UI
+containers and a generic text-only renderer for service-provided snapshots.
+The shell does not add permissions, backend calls, workflow execution, approval
+handling, or business decision logic.
 
 Acceptance:
 

@@ -121,3 +121,4 @@ echothink/0012-invalid-echo-route-fallback.patch
 echothink/0010-windows-packaging-identity.patch
 echothink/0014-side-panel-container.patch
 echothink/0015-side-panel-mode-selector.patch
+echothink/0017-workspace-context-shell.patch

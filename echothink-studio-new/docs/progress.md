@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T15 and T29 merged, T23 blocked)
+Last updated: 2026-05-29 (T17 Workspace Context shell added, T23 blocked)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -26,6 +26,7 @@ known limitations here.
 | T13 | W4 | Add bundled extension install patch | T12 | DONE | Created `patches/echothink/0004-bundled-workspace-extension.patch` and inserted it into `patches/series` between `echothink/0003-new-tab-and-first-run.patch` and `echothink/0005-default-search-provider.patch`. T12 is DONE. The patch bundles the workspace shell as a Chromium component extension, allowlists only fixed extension ID `lokdibgfmiemhdoogailbfpdggndpolk`, registers it in `ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages()`, and adds resources under `chrome/browser/resources/echothink_workspace/`. Source manifest now carries the same public key, no `update_url`, exact permissions `sidePanel`, `storage`, `tabs`, `activeTab`, `scripting`, and only Echothink-owned host permissions. No extension permission model weakening or Web Store replacement path was added. Task note: `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`. |
 | T14 | W5 | Implement Side Panel container | T13 | DONE | Added `patches/echothink/0014-side-panel-container.patch` and appended it to `patches/series` after the active Echothink tail. T13 is DONE. The extension action remains the browser UI entry point: `background.js` now configures `openPanelOnActionClick` on install/startup/service-worker load, enables the local `sidepanel.html` shell for tabs, and calls `chrome.sidePanel.open()` from the action click user gesture as a runtime fallback. No new permissions, host permissions, privileged bridges, backend calls, or business logic were added. Runtime click smoke is deferred because no local Chromium source/build exists. Task note: `docs/echothink-browser-alpha/t14-implement-side-panel-container.md`. |
 | T15 | W6 | Implement Side Panel mode selector | T14 | DONE | Added `patches/echothink/0015-side-panel-mode-selector.patch` and appended it to `patches/series` after `echothink/0014-side-panel-container.patch`. T14 is DONE. The Side Panel source shell now exposes exactly two Alpha modes, `chat` and `workspace_context`, with a visible top-level selector labelled Chat and Workspace Context. `sidepanel.js` persists selected mode under `echothink.sidePanel.mode` in profile-local `chrome.storage.local`, restores it on panel load, falls back to `chat` for missing/unsupported values, and switches modes without browser restart. No new permissions, host permissions, privileged bridges, backend calls, sync storage, or business logic were added. Runtime restart persistence smoke is deferred because no local Chromium source/build exists. Task note: `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`. |
+| T17 | W7 | Implement Workspace Context shell | T15 | DONE | Added `patches/echothink/0017-workspace-context-shell.patch` and appended it to `patches/series` after `echothink/0015-side-panel-mode-selector.patch`. T15 is DONE. Workspace Context mode now renders containers for current project context, App Domain context, Task Wave status, agent console entry, pending approvals, recent artifacts, project navigation, notifications, and quick actions. `sidepanel.js` can render an already available structured snapshot from `chrome.storage.local` or an internal extension message using text-only DOM writes and Echothink-owned HTTPS links only. No new permissions, host permissions, backend fetches, workflow execution, approval/project/task business logic, privileged bridges, token/private-key exposure, or protected Chromium behavior changes were added. Runtime Side Panel smoke is deferred because no local Chromium source/build exists. Task note: `docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md`. |
 | T11 | W4 | Add first-run shell | T10 | DONE | Created `patches/echothink/0011-first-run-gate-shell.patch` and appended `echothink/0011-first-run-gate-shell.patch` to the Echothink series tail (after `echothink/0005`). Establishes the M2 first-run **gate shell** by reusing T10's `chrome://echothink-first-run` page (no new page) and making a single narrow first-run-only edit to the `AddFirstRunTabs` block in `chrome/browser/chrome_browser_main.cc` so that on first launch the browser opens **only** the gate shell — suppressing the inherited `chrome://ungoogled-first-run` how-to tab and the normal-profile workspace / New Tab tabs (`master_prefs_->new_tabs`) before setup. The shell's primary CTAs are Sign in (`auth.echothink.ai/login`) and Enroll device (`auth.echothink.ai/device/enroll`), so first launch leads to login/enrollment. No navigation interception, auth-readiness flags, or post-setup restoration — those are owned by T20 (spec) and T21 (`echothink/0006-login-gate.patch`). No policy/pref change; no business logic; no network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools change; non-first-run startup untouched. Patch number `0011` chosen to avoid the change plan's reserved band (0004/0006–0010). Validated: `git apply --numstat` (12/3), `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0; real `patch -p1` applied cleanly against a reconstructed post-`0003` block. Task note: `docs/echothink-browser-alpha/t11-add-first-run-shell.md`. |
 | T20 | W4 | Define login gate local state and allowlist | T10, T11 | READY | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. Both prerequisites are now `DONE` (T10; and T11, merged in this change — see the T11 row above and task note `t11-add-first-run-shell.md`). The earlier `BLOCKED` state (recorded when T11 was missing) is therefore resolved and T20 may proceed. Still pending: the M4 login-gate spec itself (local auth/device readiness flags, unauthenticated navigation allowlist, blocked-navigation behavior, setup-completion criteria, diagnostics/support exceptions). T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. |
 | T21 | W5 | Implement login-required startup gate | T20 | BLOCKED | T21 cannot start because prerequisite T20 is not marked `DONE` and no final login-gate spec exists. `docs/progress.md` marks T20 `READY`, says the M4 spec is still pending, and explicitly says T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. The current T20 note is also still a blocker note and states no login-gate spec was authored. No Chromium patch was created, `patches/series` was not changed, and protected browser areas remain untouched. Task note: `docs/echothink-browser-alpha/t21-implement-login-required-startup-gate.md`. |
@@ -1085,6 +1086,94 @@ Known limitations:
   Workspace Context in the Side Panel.
 - Chat UI behavior, outbound scope metadata, service states, request proof,
   device identity, and service-rendered Workspace Context content remain later
+  tasks.
+
+## T17 Notes
+
+Changed files:
+
+- `extensions/echothink-workspace/sidepanel.html` (Workspace Context overview
+  and required section containers)
+- `extensions/echothink-workspace/sidepanel.css` (Workspace Context layout,
+  section states, item rows, and action link styles)
+- `extensions/echothink-workspace/sidepanel.js` (generic structured snapshot
+  renderer)
+- `patches/echothink/0017-workspace-context-shell.patch` (new Echothink patch)
+- `patches/series` (appended
+  `echothink/0017-workspace-context-shell.patch` after T15)
+- `docs/echothink-browser-alpha/t17-implement-workspace-context-shell.md`
+  (new task note)
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
+- `docs/progress.md` (this file)
+
+Prerequisite status:
+
+- T17 depends on T15; T15 is marked `DONE`.
+- The canonical-root mismatch is carried forward: documentation lives under
+  `echothink-studio-new/docs`; the extension source and patch artifacts live in
+  the inherited browser root beside `patches/` and `extensions/`.
+
+Implementation decisions:
+
+- Kept Workspace Context mode inside the bundled MV3 extension shell instead of
+  adding native Chromium UI or state plumbing.
+- Added containers for current project context, App Domain context, Task Wave
+  status, agent console entry, pending approvals, recent artifacts, project
+  navigation, notifications, and quick actions.
+- Each container has stable `data-context-section` markup, default unavailable
+  copy, status/title targets, an item list target, and an action target.
+- Added a generic text-only renderer that can consume a structured snapshot
+  already available in extension-local storage under
+  `echothink.workspaceContext.snapshot` or an internal extension message of type
+  `echothink.workspaceContext.update`.
+- The renderer writes through `textContent`, caps displayed item/action counts,
+  and only creates links for Echothink-owned HTTPS origins:
+  `app.echothink.ai`, `auth.echothink.ai`, and `search.echothink.ai`.
+- Did not add service fetching, project/task/approval/artifact/business
+  decisions, quick-action execution, workflow orchestration, conversation
+  persistence, sync storage, native messaging, externally connectable messaging,
+  privileged bridges, new permissions, new host permissions, token/private-key
+  exposure, or Web Store replacement behavior.
+- Network stack, TLS validation, sandbox, renderer internals, downloads,
+  history, bookmarks, password manager, cookies, and DevTools were untouched.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "^\\| T15 \\|.*DONE" echothink-studio-new/docs/progress.md` | Passed: prerequisite T15 is marked `DONE`. |
+| `rtk python3 -m json.tool extensions/echothink-workspace/manifest.json` | Passed: manifest JSON parses. |
+| `rtk node --check extensions/echothink-workspace/background.js` | Passed. |
+| `rtk node --check extensions/echothink-workspace/content_bridge.js` | Passed. |
+| `rtk node --check extensions/echothink-workspace/sidepanel.js` | Passed. |
+| Node manifest shape check | Passed: MV3, `side_panel.default_path`, action title, exact permissions, exact host permissions, no `update_url`, and no forbidden broad permissions matched expectations. |
+| Node Workspace Context shell contract check | Passed: all required `data-context-section` containers are present, the renderer includes the storage/message snapshot hooks, Echothink-only link allowlist, and no `fetch`, `XMLHttpRequest`, `WebSocket`, `nativeMessaging`, `cookies`, `history`, `bookmarks`, or `downloads` surface. |
+| `rtk git apply --numstat patches/echothink/0017-workspace-context-shell.patch` | Passed: unified diff parses cleanly; reports 130 insertions / 14 deletions in `sidepanel.css`, 161 insertions / 19 deletions in `sidepanel.html`, and 250 insertions in `sidepanel.js`. |
+| `rtk python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `rtk python3 devutils/validate_config.py` | Passed, exit 0. |
+| `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `rtk git diff --check` | Passed: no whitespace errors. |
+
+Build-pipeline application command (deferred; no local Chromium checkout):
+
+- `patch -p1 < patches/echothink/0017-workspace-context-shell.patch` from the
+  pinned Chromium `148.0.7778.178` source root after inherited patches,
+  `echothink/0004-bundled-workspace-extension.patch`,
+  `echothink/0014-side-panel-container.patch`, and
+  `echothink/0015-side-panel-mode-selector.patch`, or
+  `python3 devutils/validate_patches.py --local <unmodified-chromium-src>`.
+
+Known limitations:
+
+- No local Chromium source checkout or browser build exists here, so real
+  `patch -p1` application and runtime Side Panel smoke testing were not run.
+- A built browser still needs to verify that switching to Workspace Context
+  shows the required containers and that later service integration can populate
+  the structured snapshot.
+- Chat shell behavior, Side Panel local auth/error/device states, backend
+  context retrieval, request proof, device identity, workflow execution,
+  approval decisions, artifact ranking, and quick-action execution remain later
   tasks.
 
 ## T30 Notes
