@@ -1,0 +1,196 @@
+# Echothink-Patch: 0019-proof-capable-extension-calls
+# Title: Attach device request proofs to bundled Side Panel Echothink API calls
+# Area: extension
+# Depends-On: echothink/0004-bundled-workspace-extension.patch, echothink/0016-chat-panel-shell.patch, echothink/0018-side-panel-local-states.patch, echothink/0024-narrow-extension-bridge.patch, echothink/0008-request-proof-helper.patch
+# Browser-Layer-Reason: The bundled Side Panel must request a browser-signed device proof and attach it to protected Echothink API calls. The proof is produced by the native helper (echothink/0008) through the narrow bridge (echothink/0024); the extension only describes the request and attaches the opaque result, so no native UI or network rewrite is needed and key material stays in native browser code.
+# Preferred-Surface-Checked: extension (local sidepanel.js calls the existing chrome.echothinkDevice bridge via the background service worker and attaches the opaque proof to the existing fetch; no new permissions, host permissions, webRequest, or native messaging)
+# Security-Critical-Areas: none (private key and signing remain in native code; the extension never receives key material, DPAPI blobs, raw tokens, or bare signatures)
+# Native-Files-Touched: chrome/browser/resources/echothink_workspace/sidepanel.js
+# Rebase-Risk: low (updates only the bundled extension resource file added by echothink/0004 and edited by echothink/0016/0018)
+# Validation: Apply inherited patches, then echothink/0001..0005 and the active tail through echothink/0024 and echothink/0008, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178; launch a fresh profile, enroll the device, open Chat mode, send a message to https://api.echothink.ai/v1/chat/stream, and verify the request carries a `DPoP` proof header and an `X-Echothink-Device-ID` header; verify a device-not-ready signing failure shows a recoverable Side Panel state and does not send an unproven request; verify no proof value, device ID, key ID, or signature is written to extension logs.
+#
+# Notes:
+# - The request target https://api.echothink.ai/v1/chat/stream is on the T25/T26
+#   signing allowlist. The extension also re-checks the allowlist locally and
+#   never attaches a proof to a non-allowlisted destination.
+# - Signing failures (missing/locked/reset device) map to recoverable Side Panel
+#   local states; an unproven request is not sent in that case.
+# - If the bundled device bridge is absent (non-proof-capable build), the chat
+#   request falls back to the existing cookie-authenticated call unchanged.
+# - The Authorization header is intentionally not added: Alpha chat calls are
+#   cookie-authenticated, and raw access tokens never enter extension state.
+#
+diff --git a/chrome/browser/resources/echothink_workspace/sidepanel.js b/chrome/browser/resources/echothink_workspace/sidepanel.js
+index 85e115eb..d1a372e1 100644
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.js
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.js
+@@ -16,6 +16,25 @@ const CHAT_CLIENT = Object.freeze({
+   version: "0.1.0",
+ });
+ const STREAM_DONE = Symbol("stream_done");
++const DEVICE_BRIDGE_MESSAGE_TYPE = "echothink.device.bridge";
++const REQUEST_PROOF_TYPE = "echothink-request-proof-v1";
++const PROOF_HEADER = "DPoP";
++const DEVICE_ID_HEADER = "X-Echothink-Device-ID";
++const PROOF_SIGNING_ALLOWLIST = Object.freeze([
++  { origin: "https://api.echothink.ai", pathPrefix: "/v1/" },
++  { origin: "https://auth.echothink.ai", pathPrefix: "/browser/" },
++  { origin: "https://auth.echothink.ai", pathPrefix: "/device/" },
++  { origin: "https://app.echothink.ai", pathPrefix: "/api/" },
++]);
++const PROOF_ERROR_LOCAL_STATE = Object.freeze({
++  missing_device: "no_device_identity",
++  locked_key: "no_device_identity",
++  reset: "no_device_identity",
++  unauthorized_extension: "no_device_identity",
++  invalid_payload: "remote_service_error",
++  disallowed_destination: "remote_service_error",
++  bridge_error: "remote_service_error",
++});
+ const CHAT_SCOPE_LABELS = Object.freeze({
+   current_page: "Current page",
+   project: "Current project",
+@@ -128,6 +147,7 @@ let hasUserSelectedMode = false;
+ let isSendingChatMessage = false;
+ let currentActiveTab;
+ let currentSidePanelLocalState = { state: DEFAULT_LOCAL_STATE, detail: "" };
++let cachedDeviceId = "";
+ 
+ function isSupportedMode(mode) {
+   return ALPHA_MODES.includes(mode);
+@@ -653,6 +673,109 @@ async function getActiveTab() {
+   return tab;
+ }
+ 
++function isProofSigningAllowed(targetUrl) {
++  let parsedUrl;
++  try {
++    parsedUrl = new URL(targetUrl);
++  } catch {
++    return false;
++  }
++
++  if (parsedUrl.protocol !== "https:") {
++    return false;
++  }
++
++  return PROOF_SIGNING_ALLOWLIST.some(
++    (entry) =>
++      entry.origin === parsedUrl.origin &&
++      parsedUrl.pathname.startsWith(entry.pathPrefix),
++  );
++}
++
++function sendDeviceBridgeMessage(method, payload) {
++  if (!globalThis.chrome?.runtime?.sendMessage) {
++    return Promise.resolve({ ok: false, error: "unsupported_platform" });
++  }
++
++  return new Promise((resolve) => {
++    try {
++      globalThis.chrome.runtime.sendMessage(
++        { type: DEVICE_BRIDGE_MESSAGE_TYPE, method, payload },
++        (response) => {
++          if (globalThis.chrome.runtime.lastError) {
++            resolve({ ok: false, error: "bridge_error" });
++            return;
++          }
++
++          resolve(response ?? { ok: false, error: "bridge_error" });
++        },
++      );
++    } catch {
++      resolve({ ok: false, error: "bridge_error" });
++    }
++  });
++}
++
++async function getDeviceId() {
++  if (cachedDeviceId) {
++    return cachedDeviceId;
++  }
++
++  const status = await sendDeviceBridgeMessage("getDeviceStatus");
++  if (status?.ok && typeof status.device_id === "string" && status.device_id) {
++    cachedDeviceId = status.device_id;
++  }
++
++  return cachedDeviceId || "";
++}
++
++async function requestRequestProof(method, targetUrl) {
++  if (!isProofSigningAllowed(targetUrl)) {
++    return { attached: false };
++  }
++
++  const result = await sendDeviceBridgeMessage("signProofPayload", {
++    method,
++    url: targetUrl,
++    timestamp: new Date().toISOString(),
++  });
++
++  if (
++    result?.ok &&
++    result.proof_type === REQUEST_PROOF_TYPE &&
++    typeof result.proof === "string" &&
++    result.proof
++  ) {
++    return { attached: true, proof: result.proof };
++  }
++
++  // A build without the bundled device bridge cannot produce proofs; fall back
++  // to the existing cookie-authenticated request instead of blocking chat.
++  if (result?.error === "unsupported_platform") {
++    return { attached: false };
++  }
++
++  return { attached: false, error: result?.error || "bridge_error" };
++}
++
++async function buildProofHeaders(method, targetUrl) {
++  const proofResult = await requestRequestProof(method, targetUrl);
++  if (proofResult.error) {
++    return { error: proofResult.error };
++  }
++
++  const headers = {};
++  if (proofResult.attached) {
++    headers[PROOF_HEADER] = proofResult.proof;
++    const deviceId = await getDeviceId();
++    if (deviceId) {
++      headers[DEVICE_ID_HEADER] = deviceId;
++    }
++  }
++
++  return { headers };
++}
++
+ async function submitChatMessage(message) {
+   if (isSendingChatMessage || isChatInputBlockedByLocalState()) {
+     return;
+@@ -668,12 +791,25 @@ async function submitChatMessage(message) {
+   const assistantMessage = appendChatMessage("assistant");
+ 
+   try {
++    const proof = await buildProofHeaders("POST", CHAT_STREAM_ENDPOINT);
++    if (proof.error) {
++      const localState =
++        PROOF_ERROR_LOCAL_STATE[proof.error] || "remote_service_error";
++      const copy =
++        LOCAL_STATE_COPY[localState] || LOCAL_STATE_COPY.remote_service_error;
++      assistantMessage.textContent = copy.description;
++      setChatStatus(copy.description, { kind: "error" });
++      await setSidePanelLocalState(localState);
++      return;
++    }
++
+     const response = await fetch(CHAT_STREAM_ENDPOINT, {
+       method: "POST",
+       credentials: "include",
+       headers: {
+         "Content-Type": "application/json",
+         Accept: "text/event-stream, application/x-ndjson, application/json, text/plain",
++        ...proof.headers,
+       },
+       body: JSON.stringify(requestPayload),
+     });

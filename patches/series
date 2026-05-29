@@ -128,3 +128,4 @@ echothink/0016-chat-panel-shell.patch
 echothink/0018-side-panel-local-states.patch
 echothink/0024-narrow-extension-bridge.patch
 echothink/0008-request-proof-helper.patch
+echothink/0019-proof-capable-extension-calls.patch

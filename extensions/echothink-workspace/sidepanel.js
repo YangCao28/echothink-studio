@@ -16,6 +16,25 @@ const CHAT_CLIENT = Object.freeze({
   version: "0.1.0",
 });
 const STREAM_DONE = Symbol("stream_done");
+const DEVICE_BRIDGE_MESSAGE_TYPE = "echothink.device.bridge";
+const REQUEST_PROOF_TYPE = "echothink-request-proof-v1";
+const PROOF_HEADER = "DPoP";
+const DEVICE_ID_HEADER = "X-Echothink-Device-ID";
+const PROOF_SIGNING_ALLOWLIST = Object.freeze([
+  { origin: "https://api.echothink.ai", pathPrefix: "/v1/" },
+  { origin: "https://auth.echothink.ai", pathPrefix: "/browser/" },
+  { origin: "https://auth.echothink.ai", pathPrefix: "/device/" },
+  { origin: "https://app.echothink.ai", pathPrefix: "/api/" },
+]);
+const PROOF_ERROR_LOCAL_STATE = Object.freeze({
+  missing_device: "no_device_identity",
+  locked_key: "no_device_identity",
+  reset: "no_device_identity",
+  unauthorized_extension: "no_device_identity",
+  invalid_payload: "remote_service_error",
+  disallowed_destination: "remote_service_error",
+  bridge_error: "remote_service_error",
+});
 const CHAT_SCOPE_LABELS = Object.freeze({
   current_page: "Current page",
   project: "Current project",
@@ -128,6 +147,7 @@ let hasUserSelectedMode = false;
 let isSendingChatMessage = false;
 let currentActiveTab;
 let currentSidePanelLocalState = { state: DEFAULT_LOCAL_STATE, detail: "" };
+let cachedDeviceId = "";
 
 function isSupportedMode(mode) {
   return ALPHA_MODES.includes(mode);
@@ -653,6 +673,109 @@ async function getActiveTab() {
   return tab;
 }
 
+function isProofSigningAllowed(targetUrl) {
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(targetUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsedUrl.protocol !== "https:") {
+    return false;
+  }
+
+  return PROOF_SIGNING_ALLOWLIST.some(
+    (entry) =>
+      entry.origin === parsedUrl.origin &&
+      parsedUrl.pathname.startsWith(entry.pathPrefix),
+  );
+}
+
+function sendDeviceBridgeMessage(method, payload) {
+  if (!globalThis.chrome?.runtime?.sendMessage) {
+    return Promise.resolve({ ok: false, error: "unsupported_platform" });
+  }
+
+  return new Promise((resolve) => {
+    try {
+      globalThis.chrome.runtime.sendMessage(
+        { type: DEVICE_BRIDGE_MESSAGE_TYPE, method, payload },
+        (response) => {
+          if (globalThis.chrome.runtime.lastError) {
+            resolve({ ok: false, error: "bridge_error" });
+            return;
+          }
+
+          resolve(response ?? { ok: false, error: "bridge_error" });
+        },
+      );
+    } catch {
+      resolve({ ok: false, error: "bridge_error" });
+    }
+  });
+}
+
+async function getDeviceId() {
+  if (cachedDeviceId) {
+    return cachedDeviceId;
+  }
+
+  const status = await sendDeviceBridgeMessage("getDeviceStatus");
+  if (status?.ok && typeof status.device_id === "string" && status.device_id) {
+    cachedDeviceId = status.device_id;
+  }
+
+  return cachedDeviceId || "";
+}
+
+async function requestRequestProof(method, targetUrl) {
+  if (!isProofSigningAllowed(targetUrl)) {
+    return { attached: false };
+  }
+
+  const result = await sendDeviceBridgeMessage("signProofPayload", {
+    method,
+    url: targetUrl,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (
+    result?.ok &&
+    result.proof_type === REQUEST_PROOF_TYPE &&
+    typeof result.proof === "string" &&
+    result.proof
+  ) {
+    return { attached: true, proof: result.proof };
+  }
+
+  // A build without the bundled device bridge cannot produce proofs; fall back
+  // to the existing cookie-authenticated request instead of blocking chat.
+  if (result?.error === "unsupported_platform") {
+    return { attached: false };
+  }
+
+  return { attached: false, error: result?.error || "bridge_error" };
+}
+
+async function buildProofHeaders(method, targetUrl) {
+  const proofResult = await requestRequestProof(method, targetUrl);
+  if (proofResult.error) {
+    return { error: proofResult.error };
+  }
+
+  const headers = {};
+  if (proofResult.attached) {
+    headers[PROOF_HEADER] = proofResult.proof;
+    const deviceId = await getDeviceId();
+    if (deviceId) {
+      headers[DEVICE_ID_HEADER] = deviceId;
+    }
+  }
+
+  return { headers };
+}
+
 async function submitChatMessage(message) {
   if (isSendingChatMessage || isChatInputBlockedByLocalState()) {
     return;
@@ -668,12 +791,25 @@ async function submitChatMessage(message) {
   const assistantMessage = appendChatMessage("assistant");
 
   try {
+    const proof = await buildProofHeaders("POST", CHAT_STREAM_ENDPOINT);
+    if (proof.error) {
+      const localState =
+        PROOF_ERROR_LOCAL_STATE[proof.error] || "remote_service_error";
+      const copy =
+        LOCAL_STATE_COPY[localState] || LOCAL_STATE_COPY.remote_service_error;
+      assistantMessage.textContent = copy.description;
+      setChatStatus(copy.description, { kind: "error" });
+      await setSidePanelLocalState(localState);
+      return;
+    }
+
     const response = await fetch(CHAT_STREAM_ENDPOINT, {
       method: "POST",
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
         Accept: "text/event-stream, application/x-ndjson, application/json, text/plain",
+        ...proof.headers,
       },
       body: JSON.stringify(requestPayload),
     });

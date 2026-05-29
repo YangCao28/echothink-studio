@@ -429,8 +429,13 @@ It defines the canonical payload fields (`method`, `url`, `timestamp`,
 optional `nonce`, and optional `access_token_hash`), the exact Echothink HTTPS
 destination allowlist, third-party rejection behavior, safe opaque proof result
 shape, and the rule that replay protection and proof validation remain
-backend/gateway responsibilities. T26 still owns the native helper patch, and
-T27 remains responsible for extension integration after T26 is complete.
+backend/gateway responsibilities. T26 implemented the native helper patch
+(`patches/echothink/0008-request-proof-helper.patch`), and T27 wired it into the
+bundled Side Panel chat call in
+`patches/echothink/0019-proof-capable-extension-calls.patch`: the panel attaches
+`DPoP` and `X-Echothink-Device-ID` headers to allowlisted Echothink API calls
+and shows recoverable local states on signing failure. See
+`docs/echothink-browser-alpha/t27-integrate-proof-helper-into-extension-calls.md`.
 
 ### 5.8 Optional Echo Protocol
 
