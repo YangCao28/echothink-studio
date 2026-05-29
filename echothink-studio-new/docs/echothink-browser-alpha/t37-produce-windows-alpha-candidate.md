@@ -30,7 +30,6 @@ T33 through T36:
 
 | Missing task | Required artifact or decision | Exact file or decision needed |
 |---|---|---|
-| T22 | Final device identity and DPAPI design | Complete `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md` with local device identity fields, Windows DPAPI private-key storage format/scope, non-secret metadata placement, reset/logout behavior, and private-key bridge boundaries. T22 is now `READY` after T20 completion but is not `DONE`. |
 | T23 | Device key generation/storage patch | Create `patches/echothink/0007-device-identity.patch` and add `echothink/0007-device-identity.patch` to `patches/series` when active. |
 | T24 | Narrow extension bridge artifact | T24 task note now exists at `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`, but T24 remains `BLOCKED`; deliver the bridge implementation artifact, including any required active patch and `patches/series` entry. |
 | T25 | Final proof payload and allowlist spec | Complete `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md` with final payload fields, URL allowlist, signing boundary, replay controls, and failure behavior. |

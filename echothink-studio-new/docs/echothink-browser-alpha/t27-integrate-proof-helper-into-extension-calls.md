@@ -14,9 +14,9 @@ prerequisites are not complete in the shared progress source.
 Current evidence:
 
 - `docs/progress.md` marks T16 as `DONE`.
-- `docs/progress.md` has no T24 status row.
-- No `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
-  task note exists.
+- `docs/progress.md` marks T24 as `BLOCKED`, not `DONE`.
+- `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
+  exists, but records a blocker rather than a bridge implementation.
 - `docs/progress.md` marks T26 as `BLOCKED`.
 - `docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md` confirms
   no `patches/echothink/0008-request-proof-helper.patch` was created or added
@@ -31,7 +31,7 @@ the bundled extension to request signatures or attach proof headers yet.
 | Prerequisite | Required by | Status | Evidence |
 |---|---|---|---|
 | T16 - Implement Chat Panel shell | T27 | DONE | `docs/progress.md` marks T16 `DONE`; `extensions/echothink-workspace/sidepanel.js` currently posts chat requests to `https://api.echothink.ai/v1/chat/stream` with `credentials: "include"`. |
-| T24 - Implement narrow extension bridge | T27 | MISSING | `docs/progress.md` has no T24 row and no `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` task note exists. |
+| T24 - Implement narrow extension bridge | T27 | BLOCKED | `docs/progress.md` marks T24 `BLOCKED`; the T24 task note says no bridge API or device-key implementation exists. |
 | T26 - Implement proof signing helper | T27 | BLOCKED | `docs/progress.md` marks T26 `BLOCKED`; no `patches/echothink/0008-request-proof-helper.patch` exists. |
 
 No progress entry or task note explicitly accepts incomplete T24 or T26 as a
@@ -42,8 +42,9 @@ baseline dependency for T27.
 Complete T24 and T26 before resuming T27. The exact missing files or artifacts
 needed are:
 
-- `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
 - `docs/progress.md`, with T24 marked `DONE`
+- `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`,
+  updated from blocker note to completed bridge note
 - The T24 bridge implementation artifact, including any required
   `patches/echothink/` patch and `patches/series` entry if delivered as a
   Chromium patch
@@ -100,8 +101,8 @@ not:
   high-level proof-of-possession headers while leaving security to backend
   signature verification.
 - `docs/dag-doc.md`, which defines T27's prerequisites and delivery criteria.
-- `docs/progress.md`, which marks T16 `DONE`, marks T26 `BLOCKED`, and has no
-  T24 row.
+- `docs/progress.md`, which marks T16 `DONE`, T24 `BLOCKED`, and T26
+  `BLOCKED`.
 - `docs/echothink-browser-alpha/t16-implement-chat-panel-shell.md`, which
   records the current chat request path and explicitly defers proof integration.
 - `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`,
@@ -120,7 +121,8 @@ Run from the inherited browser repository root.
 |---|---|
 | `rtk rg -n "^\\| T16 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T16 is marked `DONE`. |
 | `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T24 is not marked `DONE`. |
-| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` | Failed as expected: no T24 task note exists. |
+| `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T24 is marked `BLOCKED`. |
+| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` | Passed: the T24 blocker note exists. |
 | `rtk rg -n "^\\| T26 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T26 is marked `BLOCKED`. |
 | `rtk ls -l patches/echothink/0008-request-proof-helper.patch` | Failed as expected: no proof helper patch exists. |
 | `rtk rg -n "echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive blocked patch is not listed in the active patch pipeline. |

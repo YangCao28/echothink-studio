@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T21 done; T37 blocked)
+Last updated: 2026-05-29 (T22 done; T23 ready; T37 blocked)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -32,20 +32,20 @@ known limitations here.
 | T11 | W4 | Add first-run shell | T10 | DONE | Created `patches/echothink/0011-first-run-gate-shell.patch` and appended `echothink/0011-first-run-gate-shell.patch` to the Echothink series tail (after `echothink/0005`). Establishes the M2 first-run **gate shell** by reusing T10's `chrome://echothink-first-run` page (no new page) and making a single narrow first-run-only edit to the `AddFirstRunTabs` block in `chrome/browser/chrome_browser_main.cc` so that on first launch the browser opens **only** the gate shell — suppressing the inherited `chrome://ungoogled-first-run` how-to tab and the normal-profile workspace / New Tab tabs (`master_prefs_->new_tabs`) before setup. The shell's primary CTAs are Sign in (`auth.echothink.ai/login`) and Enroll device (`auth.echothink.ai/device/enroll`), so first launch leads to login/enrollment. No navigation interception, auth-readiness flags, or post-setup restoration — those are owned by T20 (spec) and T21 (`echothink/0006-login-gate.patch`). No policy/pref change; no business logic; no network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools change; non-first-run startup untouched. Patch number `0011` chosen to avoid the change plan's reserved band (0004/0006–0010). Validated: `git apply --numstat` (12/3), `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0; real `patch -p1` applied cleanly against a reconstructed post-`0003` block. Task note: `docs/echothink-browser-alpha/t11-add-first-run-shell.md`. |
 | T20 | W4 | Define login gate local state and allowlist | T10, T11 | DONE | Task note updated at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. Prerequisites T10 and T11 are both `DONE`. The M4 login-gate spec now defines non-secret profile readiness preferences (`echothink.auth.session_ready`, `echothink.device.enrolled`, `echothink.device.verified`, `echothink.setup.complete`, completion/block diagnostic timestamps), an explicit unauthenticated top-level navigation allowlist, blocked-navigation behavior that redirects to `chrome://echothink-first-run` without leaking blocked URLs, setup-completion criteria, reset/logout behavior, and diagnostics/support exceptions. `chrome://echothink-diagnostics` remains allowlisted but known dead until its owning task implements it. No Chromium patch, backend service, gateway logic, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. |
 | T21 | W5 | Implement login-required startup gate | T20 | DONE | Created active patch `patches/echothink/0006-login-gate.patch` and inserted `echothink/0006-login-gate.patch` into `patches/series` after `echothink/0011-first-run-gate-shell.patch` and before the `echo://` navigation patches. The patch registers T20's non-secret readiness prefs, derives/caches `echothink.setup.complete`, routes pre-setup New Tab to `chrome://echothink-first-run`, rewrites browser-level blocked navigations to that local shell with referrer cleared, and allows only the explicit T20 setup/support/update/diagnostic routes until setup is complete. No backend service, gateway logic, search ranking, chat/workflow orchestration, business pages, network stack, TLS validation, sandbox, renderer internals, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. Task note updated at `docs/echothink-browser-alpha/t21-implement-login-required-startup-gate.md`. |
-| T22 | W5 | Define device identity and DPAPI storage | T00, T20 | READY | T00 and T20 are now `DONE`, so the prior T22 prerequisite blocker is resolved. T22 may proceed to define device identity and DPAPI storage aligned with the T20 readiness/reset contract. No T22 device identity design has been authored yet, and T23 remains blocked until T22 is completed. Task note updated at `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`. |
-| T23 | W6 | Implement device key generation and storage | T22 | BLOCKED | T23 cannot start because prerequisite T22 is not marked `DONE` and no final M5 device identity design exists. T22 is now `READY` after T20 completion, but it has not authored the device identity and DPAPI storage design. Missing T22 decisions: local device identity fields, Windows DPAPI private-key storage format/scope, non-secret metadata placement, restart persistence, explicit reset behavior, and native bridge boundary that keeps private key material out of extension JavaScript/logs/docs. No Chromium patch was created, `patches/series` was not changed, and no key material, token, or proof internals were exposed. Task note: `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`. |
-| T24 | W7 | Implement narrow extension bridge | T13, T23 | BLOCKED | Task note at `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`. T24 cannot start because prerequisite T23 is not marked `DONE` and no device-key implementation exists for the bridge to call. T13 is `DONE` and supplies the bundled workspace extension ID `lokdibgfmiemhdoogailbfpdggndpolk`, but `docs/progress.md` marks T23 `BLOCKED`, no `patches/echothink/0007-device-identity.patch` exists, and `patches/series` does not list `echothink/0007-device-identity.patch`. Missing T23/T22 decisions and files: DPAPI key storage format/scope, device metadata placement, restart persistence, explicit reset behavior, native private-key boundary, `patches/echothink/0007-device-identity.patch`, and `patches/series`. No bridge API, extension permissions, native code, backend service, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior, key material, token, or proof internals were changed or exposed. |
+| T22 | W5 | Define device identity and DPAPI storage | T00, T20 | DONE | Device identity design finalized at `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`. T00 and T20 are `DONE`. The design selects Windows DPAPI current-user storage for Alpha private key material, defines ECDSA P-256 / `ES256` device identity fields, splits non-secret metadata between Local State and profile prefs, documents restart persistence, sign-out, revocation, explicit local reset, and records bridge boundaries so extension JavaScript never receives private key material or DPAPI blobs. Broader docs now point to the T22 design as source of truth. No Chromium patch was created; T23 owns `patches/echothink/0007-device-identity.patch`. |
+| T23 | W6 | Implement device key generation and storage | T22 | READY | T23 is no longer blocked by missing T22 design because T22 is now `DONE`. Implementation has not started: no `patches/echothink/0007-device-identity.patch` exists and `patches/series` does not list it. T23 must implement the T22 DPAPI current-user key storage, Local State/profile-pref metadata, restart persistence, and explicit reset behavior without exposing private key material to JavaScript, logs, docs examples, or progress notes. Task note updated at `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`. |
+| T24 | W7 | Implement narrow extension bridge | T13, T23 | BLOCKED | Task note at `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`. T24 cannot start because prerequisite T23 is not marked `DONE` and no device-key implementation exists for the bridge to call. T13 is `DONE` and supplies the bundled workspace extension ID `lokdibgfmiemhdoogailbfpdggndpolk`; T22 is `DONE` and supplies the bridge-boundary design. Missing T23 files remain `patches/echothink/0007-device-identity.patch` and the corresponding `patches/series` entry. No bridge API, extension permissions, native code, backend service, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior, key material, token, or proof internals were changed or exposed. |
 | T25 | W8 | Define request proof payload and allowlist | T24 | BLOCKED | T25 cannot start because prerequisite T24 is not marked `DONE`; T24 is `BLOCKED` by missing device identity implementation from T23. No proof helper spec was authored: canonical payload shape, Echothink-domain signing allowlist, third-party rejection behavior, browser-side signing boundary, replay-protection ownership, and proof-validation ownership remain undefined. No Chromium patch, extension code, backend service, gateway logic, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior, private key material, access token, signed proof, or proof internals were changed or exposed. Task note: `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`. |
-| T26 | W9 | Implement proof signing helper | T25 | BLOCKED | T26 cannot start because prerequisite T25 is not marked `DONE`, no final M5 proof helper spec exists, and the T25 task note explicitly says T26 must not use it as authorization to implement `patches/echothink/0008-request-proof-helper.patch`. Missing T25 decisions: canonical request-proof payload fields/order/normalization, Echothink destination signing allowlist, malformed and third-party rejection behavior, browser-side signing-only boundary, backend replay/proof-validation ownership, and safe signature/proof result shape. Upstream blockers remain T24 bridge, T23 device key implementation, and T22 device identity design. No patch was created, `patches/series` was not changed, Chromium network/TLS behavior remains untouched, and no private key material, access token, signed proof, or proof internals were exposed. Task note: `docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md`. |
+| T26 | W9 | Implement proof signing helper | T25 | BLOCKED | T26 cannot start because prerequisite T25 is not marked `DONE`, no final M5 proof helper spec exists, and the T25 task note explicitly says T26 must not use it as authorization to implement `patches/echothink/0008-request-proof-helper.patch`. Missing T25 decisions: canonical request-proof payload fields/order/normalization, Echothink destination signing allowlist, malformed and third-party rejection behavior, browser-side signing-only boundary, backend replay/proof-validation ownership, and safe signature/proof result shape. T22 is complete; upstream blockers remain T24 bridge and T23 device key implementation. No patch was created, `patches/series` was not changed, Chromium network/TLS behavior remains untouched, and no private key material, access token, signed proof, or proof internals were exposed. Task note: `docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md`. |
 | T27 | W10 | Integrate proof helper into extension calls | T16, T24, T26 | BLOCKED | T27 cannot start because prerequisite T24 is not marked `DONE` and T26 is marked `BLOCKED` with no proof signing helper patch. T16 is `DONE` and supplies the current chat request path, but there is no authorized bridge method, proof helper result shape, signing error model, proof header/metadata contract, or active `patches/echothink/0008-request-proof-helper.patch` for the extension to consume. No extension files, manifest permissions, host permissions, Chromium patch files, or `patches/series` entries were changed; no private key material, access tokens, proof payloads, signed proof values, or proof internals were exposed. Task note: `docs/echothink-browser-alpha/t27-integrate-proof-helper-into-extension-calls.md`. |
 | T28 | W5 | Implement optional `echo://` resolver | T10 | DONE | Task note at `docs/echothink-browser-alpha/t28-implement-optional-resolver.md`. Prerequisite T10 is DONE. Created `patches/echothink/0009-echo-protocol-router.patch` and inserted `echothink/0009-echo-protocol-router.patch` into `patches/series` after `echothink/0011-first-run-gate-shell.patch` and before `echothink/0010-windows-packaging-identity.patch`. Patch adds a narrow `chrome/browser/ui/browser_navigator.cc` navigation helper that rewrites only known `echo://` route shapes (`dashboard`, `project/{id}`, `task-wave/{id}`, `app-domain/{domain}/{instance}`, `artifact/{id}`, `approval/{id}`) to matching `https://app.echothink.ai/` URLs, accepts only unreserved non-empty segments, rejects query/fragment payloads, and clears the `echo://` referrer. No backend authorization, device proof, protected content, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Unsupported/invalid route UX remains T29. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and real `patch -p1` against the pinned Chromium `148.0.7778.178` `browser_navigator.cc` source copy all pass. |
 | T29 | W6 | Add invalid `echo://` route fallback page | T28 | DONE | Task note at `docs/echothink-browser-alpha/t29-add-invalid-fallback-page.md`. Prerequisite T28 is DONE. Created `patches/echothink/0012-invalid-echo-route-fallback.patch` and inserted `echothink/0012-invalid-echo-route-fallback.patch` in `patches/series` immediately after `echothink/0009-echo-protocol-router.patch`. Patch keeps T28 valid route resolution intact and rewrites unsupported/invalid `echo://` navigations to local `chrome://echothink-invalid-echo`, clearing the original referrer and carrying no original route, segments, query, or fragment into the fallback URL or page. The WebUI page is static/script-free, contains no workspace/resource data, and links only to dashboard, setup, and support. No backend service, gateway logic, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and targeted `git apply --check --include=chrome/browser/ui/browser_navigator.cc` against the existing post-T28 source copy all pass. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 | T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 | T32 | W5 | Add Windows build/signing/smoke docs | T30, T31 | DONE | Windows Alpha release runbook created at `docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`. Prerequisites T30 and T31 are DONE. Documents the Alpha Dev `mini_installer` build path, asset staging, `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe` package shape, signing workflow, sidecar update-channel metadata and reserved per-channel IDs, smoke procedure covering launch, branding, New Tab, Side Panel, search, restart, and uninstall, plus an Alpha candidate release checklist. Validation is docs/path based because this environment is not Windows and has no local Chromium source checkout. |
-| T33 | W11 | Run full patch validation | T05, T08, T10, T13, T19, T21, T23, T26, T31 | BLOCKED | Task note at `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`. T33 still cannot run full inherited-plus-Echothink patch validation because required prerequisites T23 and T26 are not `DONE`, with no explicit baseline exception for T33. T21 is now `DONE` and `patches/echothink/0006-login-gate.patch` is active. Missing required artifacts are `patches/echothink/0007-device-identity.patch` and `patches/echothink/0008-request-proof-helper.patch`; neither is listed in `patches/series`. Current active `patches/series` is structurally valid for existing patches (`entries=123`, `inherited=108`, `echothink=15`, `missing_series_files=0`, `duplicates=0`, `echothink_tail_ok=True`), and `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` pass for the current incomplete series. Full application to pinned Chromium source was not run because it would validate an incomplete Alpha patch set. |
+| T33 | W11 | Run full patch validation | T05, T08, T10, T13, T19, T21, T23, T26, T31 | BLOCKED | Task note at `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`. T33 still cannot run full inherited-plus-Echothink patch validation because required prerequisites T23 and T26 are not `DONE`, with no explicit baseline exception for T33. T22 is now `DONE` and T23 is `READY`, but the device identity implementation patch still does not exist. Missing required artifacts are `patches/echothink/0007-device-identity.patch` and `patches/echothink/0008-request-proof-helper.patch`; neither is listed in `patches/series`. Current active `patches/series` is structurally valid for existing patches (`entries=123`, `inherited=108`, `echothink=15`, `missing_series_files=0`, `duplicates=0`, `echothink_tail_ok=True`), and `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` pass for the current incomplete series. Full application to pinned Chromium source was not run because it would validate an incomplete Alpha patch set. |
 | T34 | W12 | Run native browser regression suite | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`. T34 cannot run the native browser regression suite because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for T34. Missing prerequisite artifacts remain `patches/echothink/0007-device-identity.patch` and `patches/echothink/0008-request-proof-helper.patch`; neither is active in `patches/series`. No runtime validation was run for tabs, windows, popups, history, downloads, bookmarks, password manager, cookies, local storage, TLS, DevTools, or extension loading. T34 made no browser patch/source/extension/asset/packaging changes and did not replace Chromium primitives; runtime Chromium-native ownership remains unconfirmed until T33 completes and a runnable validated browser build exists. |
-| T35 | W12 | Run Echothink behavior tests | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md`. T35 cannot run because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for behavior testing. T33 is blocked by missing required Alpha implementation patches `patches/echothink/0007-device-identity.patch` and `patches/echothink/0008-request-proof-helper.patch`; T21 is now `DONE`, while T23 and T26 remain `BLOCKED`. Required behavior checks for device identity persistence and proof-helper URL allowlist signing cannot pass because those browser artifacts do not exist. Login-gate behavior has an active patch but was not runtime-tested because there is no validated full Alpha browser candidate after T33. No source or patch files changed by T35; docs only. |
+| T35 | W12 | Run Echothink behavior tests | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md`. T35 cannot run because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for behavior testing. T33 is blocked by missing required Alpha implementation patches `patches/echothink/0007-device-identity.patch` and `patches/echothink/0008-request-proof-helper.patch`; T21 and T22 are now `DONE`, T23 is `READY`, and T26 remains `BLOCKED`. Required behavior checks for device identity persistence and proof-helper URL allowlist signing cannot pass because those browser artifacts do not exist. Login-gate behavior has an active patch but was not runtime-tested because there is no validated full Alpha browser candidate after T33. No source or patch files changed by T35; docs only. |
 | T36 | W13 | Run Windows packaging smoke test | T31, T32, T35 | BLOCKED | Task note at `docs/echothink-browser-alpha/t36-run-windows-packaging-smoke-test.md`. T36 cannot run because prerequisite T35 is `BLOCKED`, with no explicit baseline exception for Windows packaging smoke. T31 and T32 are `DONE`; the Windows Alpha Dev identity patch, icon assets, update-channel metadata contract, and smoke procedure are present. However, no validated Alpha behavior pass or Windows installer candidate exists after T35, so install, Start Menu launch, app/icon identity, New Tab, Side Panel restart persistence, search, signing/update-channel observations, and uninstall were not run. Missing upstream artifacts remain `patches/echothink/0007-device-identity.patch` and `patches/echothink/0008-request-proof-helper.patch`. Docs only; no source, patch, asset, installer, network, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. |
 | T37 | W14 | Produce Windows Alpha candidate | T33, T34, T35, T36 | BLOCKED | Task note at `docs/echothink-browser-alpha/t37-produce-windows-alpha-candidate.md`. T37 cannot produce a signed/tested Windows Alpha candidate because all direct prerequisites are `BLOCKED`, with no explicit baseline exception: T33 patch validation, T34 native regression, T35 Echothink behavior tests, and T36 Windows packaging smoke. The T24 blocker branch has been merged into this T37 worktree, so `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` and the T24 progress row now exist; T24 remains `BLOCKED` by T23. No candidate artifact, signed installer, SHA256, channel sidecar, or build timestamp was emitted. Current traceability snapshot: Chromium pin `148.0.7778.178`, repository revision marker `1`, T37 source base after T24 merge `7bba82a18a43e6a5c6551a582a900ca73a571ce3`, intended Alpha channel `dev`, active Echothink patch count `15`. Missing required Alpha artifacts remain `patches/echothink/0007-device-identity.patch` and `patches/echothink/0008-request-proof-helper.patch`. Local metadata/input checks pass for existing packaging inputs, but no Windows build/sign/install/smoke was run. Docs only; no source, patch, asset, installer, network, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. |
 
@@ -1967,40 +1967,55 @@ Known limitations:
 Changed documentation:
 
 - `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`
+- `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`
+- `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
+- `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`
+- `docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md`
+- `docs/echothink-browser-alpha/t27-integrate-proof-helper-into-extension-calls.md`
+- `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`
+- `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`
+- `docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md`
+- `docs/echothink-browser-alpha/t37-produce-windows-alpha-candidate.md`
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
 - `docs/progress.md`
 
 Prerequisite status:
 
 - T22 depends on T00 and T20.
 - T00 is marked `DONE`.
-- T20 is now marked `DONE` and defines the readiness/reset contract T22 needs.
-- T22 is no longer blocked by T20 in the shared progress source. It remains not
-  implemented until the device identity design is authored.
+- T20 is marked `DONE` and defines the readiness/reset contract T22 needs.
+- T22 is now marked `DONE`; T23 is unblocked for implementation and marked
+  `READY`.
 
 Current result:
 
-- No local device identity fields were defined.
-- No Windows DPAPI private-key storage format was defined.
-- No profile preference versus Local State placement was selected for
-  non-secret device metadata.
-- No reset/logout behavior was defined.
-- No native bridge boundary was defined for keeping private key material out of
-  extension JavaScript.
+- The M5 device identity design is authored at
+  `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`.
+- Alpha selects ECDSA P-256 / `ES256` for the local device key and Windows DPAPI
+  current-user protection for private key material.
+- Private key material is stored only as a DPAPI-protected native blob in a
+  dedicated user-data-dir file, not in preferences, extension storage, web
+  storage, logs, docs examples, or progress notes.
+- Non-secret installation/key metadata is assigned to Local State.
+- Profile-specific enrollment metadata and T20 readiness flags remain profile
+  preferences.
+- Restart persistence, sign-out, backend revocation, explicit local reset,
+  profile deletion, and uninstall/user-data behavior are documented.
+- Extension bridge boundaries are documented so JavaScript never receives
+  private key material or DPAPI blobs.
 - No patch, extension code, backend service, gateway logic, network stack, TLS,
   sandbox, renderer, downloads, history, bookmarks, password manager, cookies,
   DevTools behavior, key material, token, or proof internals were changed or
   exposed.
 
-T20 contract now available for T22:
+T23 handoff:
 
-- Local auth/device readiness flags and their profile preference storage
-  surface.
-- Final unauthenticated navigation allowlist.
-- Blocked-navigation behavior and local recovery surface.
-- Setup-completion criteria after login and device verification.
-- Diagnostics/support exceptions, including the status of
-  `chrome://echothink-diagnostics`.
-- Reset/logout semantics for non-secret enrollment state.
+- T23 must implement `patches/echothink/0007-device-identity.patch` against the
+  completed T22 design.
+- T23 must add `echothink/0007-device-identity.patch` to `patches/series` only
+  when the patch exists and validates.
+- T24 remains blocked until T23 is implemented.
 
 Validation commands and results:
 
@@ -2008,17 +2023,23 @@ Validation commands and results:
 |---|---|
 | `rtk rg -n "^\\| T00 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T00 is marked `DONE`. |
 | `rtk rg -n "^\\| T20 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T20 is marked `DONE`. |
+| `rtk rg -n "^\\| T22 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T22 is marked `DONE`. |
+| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| READY \\|" echothink-studio-new/docs/progress.md` | Passed: T23 is now ready for implementation. |
 | `rtk rg -n "Reset And Logout Semantics|echothink.device.enrolled|echothink.device.verified" echothink-studio-new/docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md` | Passed: T20 now defines the readiness and reset anchors T22 must align with. |
-| `rtk rg -n "### T22: Define Device Identity And DPAPI Storage|Prerequisites: T00, T20|DPAPI" echothink-studio-new/docs/dag-doc.md echothink-studio-new/docs/ungoogled_to_echothink_browser_change_plan.md echothink-studio-new/docs/echothink_browser_construction.md` | Passed: T22 scope and DPAPI source anchors exist. |
+| `rtk rg -n "kEchothinkDeviceEnrolledPref|kEchothinkDeviceVerifiedPref|kEchothinkSetupCompletePref" patches/echothink/0006-login-gate.patch` | Passed: the active login-gate patch uses the T20 readiness prefs T22 preserves. |
+| `rtk rg -n "lokdibgfmiemhdoogailbfpdggndpolk|host_permissions|sidePanel|storage" extensions/echothink-workspace/manifest.json patches/echothink/0004-bundled-workspace-extension.patch` | Passed: the bundled extension identity and permission baseline exist for the future bridge boundary. |
+| `rtk rg -n "Status: DONE|windows_dpapi_current_user_v1|Extension Bridge Boundaries|Explicit local device reset" echothink-studio-new/docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md` | Passed: the T22 design records DPAPI selection, bridge boundaries, and reset behavior. |
+| `rtk rg -n "t22-define-device-identity-and-dpapi-storage|DPAPI current-user|Alpha source of truth" echothink-studio-new/docs/ungoogled_to_echothink_browser_change_plan.md echothink-studio-new/docs/echothink_browser_construction.md` | Passed: broader docs point to the T22 design. |
+| `rtk rg -n 'T22 is not mark[e]d|T22 is now [[:punct:]]READY[[:punct:]]|T22 is [[:punct:]]READY[[:punct:]]|no final M5 device identit[y]|T23 must not us[e]|T23 is mark[e]d [[:punct:]]BLOCKED[[:punct:]]|no T24 task note exist[s]|has no T24 ro[w]|Complete the M5 device identity desig[n]' echothink-studio-new/docs` | Exited 1 as expected: no stale T22/T23 blocker language remains. |
 | `rtk git diff --check` | Passed: no whitespace errors. |
 
 Known limitations:
 
-- This is still not the M5 device identity design.
-- T23 must not use the T22 task note as authorization to implement
+- T22 is a design task. It does not create
   `patches/echothink/0007-device-identity.patch`.
-- T22 must still be rerun to author the device identity and DPAPI storage
-  design.
+- No runtime persistence or reset smoke test was run because no implementation
+  patch exists yet.
+- TPM-backed or hardware-backed keys are deferred beyond Alpha.
 
 ## T23 Notes
 
@@ -2030,13 +2051,10 @@ Changed documentation:
 Prerequisite status:
 
 - T23 depends on T22.
-- T22 is not marked `DONE`; the task-status table marks it `READY` after T20
-  completion, but the T22 task note records that the final M5 device identity
-  design is not authored yet.
-- No progress entry or task note explicitly accepts incomplete T22 as a baseline
-  dependency for T23.
+- T22 is marked `DONE` and the final M5 device identity design exists.
+- T23 is now marked `READY`, not `BLOCKED`.
 
-Blocked work:
+Work not started:
 
 - No Chromium implementation patch was created.
 - No asymmetric key generation, DPAPI storage, metadata persistence, restart
@@ -2048,45 +2066,35 @@ Blocked work:
   password manager, cookies, or DevTools behavior was changed.
 - No private key material, access token, or proof internals were exposed.
 
-Missing prerequisite decisions from T22:
+Implementation contract now available from T22:
 
-- Local device identity fields and meanings.
-- Windows DPAPI private-key storage format and scope.
-- Placement for non-secret device metadata.
-- Persistence behavior across browser restart.
-- Explicit reset behavior for local enrollment state.
-- Native bridge boundary that keeps private key material out of extension
-  JavaScript, logs, docs examples, and progress notes.
-
-T20 baseline now available for T22:
-
-- T20 is `DONE` and defines the local auth/device readiness prefs, final
-  unauthenticated allowlist, blocked-navigation behavior, setup-completion
-  criteria, diagnostics/support exceptions, and reset/logout semantics that T22
-  must consume.
-- T22 still needs to author the final device identity and DPAPI storage design
-  before T23 can implement `patches/echothink/0007-device-identity.patch`.
+- Generate ECDSA P-256 / `ES256` keys in browser-owned native code.
+- Protect private key material with Windows DPAPI current-user scope.
+- Store protected private-key blobs outside prefs and extension/web storage.
+- Store non-secret key metadata in Local State and per-profile enrollment
+  metadata in profile prefs.
+- Persist identity across restart and implement explicit local reset.
+- Keep private key material out of extension JavaScript, logs, docs examples,
+  and progress notes.
 
 Validation commands and results:
 
 | Command | Result |
 |---|---|
-| `rtk rg -n "^\\| T22 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T22 is not marked `DONE` in the status column. |
-| `rtk rg -n "^\\| T22 \\|[^|]*\\|[^|]*\\|[^|]*\\| READY \\||T23 must not use" echothink-studio-new/docs/progress.md echothink-studio-new/docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md` | Passed: progress marks T22 `READY`, but the T22 note still blocks T23 from implementation until the design is complete. |
+| `rtk rg -n "^\\| T22 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T22 is marked `DONE` in the status column. |
+| `rtk rg -n "Status: DONE|windows_dpapi_current_user_v1|Extension Bridge Boundaries|Explicit local device reset" echothink-studio-new/docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md` | Passed: the T22 design exists and records DPAPI, bridge, and reset decisions. |
 | `rtk rg -n "### T23: Implement Device Key Generation And Storage|Prerequisites: T22|0007-device-identity.patch" echothink-studio-new/docs/dag-doc.md echothink-studio-new/docs/ungoogled_to_echothink_browser_change_plan.md echothink-studio-new/docs/echothink_browser_construction.md` | Passed: T23 scope and delivery target anchors exist. |
-| `rtk ls -l patches/echothink/0007-device-identity.patch` | Failed as expected: no blocked patch artifact was created. |
-| `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Failed as expected: inactive blocked patch is not listed in the active patch pipeline. |
+| `rtk ls -l patches/echothink/0007-device-identity.patch` | Failed as expected: T23 has not implemented the patch yet. |
+| `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Failed as expected: the unimplemented patch is not listed in the active patch pipeline. |
 | `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md echothink-studio-new/docs/progress.md` | Passed: the T23 note and shared progress file exist. |
 | `rtk git diff --check` | Passed: no whitespace errors. |
 
 Known limitations:
 
-- This is a blocker record, not the M5 device identity implementation.
-- T23 delivery criteria remain unmet until T22 is completed and
-  `patches/echothink/0007-device-identity.patch` can be implemented and
-  validated.
+- T23 delivery criteria remain unmet until
+  `patches/echothink/0007-device-identity.patch` is implemented and validated.
 - No runtime persistence or reset smoke test was run because no implementation
-  patch exists in this blocked pass.
+  patch exists yet.
 
 ## T24 Notes
 
@@ -2100,8 +2108,9 @@ Prerequisite status:
 - T24 depends on T13 and T23.
 - T13 is marked `DONE` and supplies the bundled workspace extension ID
   `lokdibgfmiemhdoogailbfpdggndpolk` with narrow manifest permissions.
-- T23 is not marked `DONE`; the task-status table marks it `BLOCKED`, and the
-  T23 task note explicitly says no Chromium device identity patch was created.
+- T22 is marked `DONE` and documents the native private-key bridge boundary.
+- T23 is not marked `DONE`; the task-status table marks it `READY`, and the
+  T23 task note confirms no Chromium device identity patch has been created.
 - No progress entry or task note explicitly accepts incomplete T23 as a
   baseline dependency for T24.
 
@@ -2127,16 +2136,16 @@ Missing prerequisite work from T23:
 - Asymmetric key generation and DPAPI private-key storage.
 - Device metadata persistence and restart loading.
 - Explicit reset behavior.
-- Native private-key boundary that the extension bridge can call without
+- Native private-key implementation that the extension bridge can call without
   exposing key material to JavaScript.
 
-Upstream T22/T20 decisions still needed before T23 can complete:
+Upstream design now available for T23:
 
-- Local device identity fields and meanings.
-- Windows DPAPI private-key storage format and scope.
-- Placement for non-secret device metadata.
-- Local auth/device readiness flags and their storage surface.
-- Setup-completion and reset/logout semantics for enrollment state.
+- T22 defines local device identity fields, Windows DPAPI current-user storage,
+  non-secret metadata placement, reset/logout behavior, and bridge boundaries.
+- T20 defines local auth/device readiness flags, setup-completion behavior, and
+  reset/logout anchors.
+- T23 still must implement those decisions before T24 can start.
 
 Validation commands and results:
 
@@ -2144,7 +2153,7 @@ Validation commands and results:
 |---|---|
 | `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T24 is not marked `DONE` in the status column. |
 | `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` | Passed: the T24 note exists. |
-| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: upstream T23 is blocked. |
+| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| READY \\|" echothink-studio-new/docs/progress.md` | Passed: upstream T23 is ready but not implemented. |
 | `rtk rg -n "### T24: Implement Narrow Extension Bridge|Prerequisites: T13, T23|getDeviceStatus|signProofPayload" echothink-studio-new/docs/dag-doc.md echothink-studio-new/docs/ungoogled_to_echothink_browser_change_plan.md` | Passed: T24 scope and bridge method anchors exist. |
 | `rtk ls -l patches/echothink/0007-device-identity.patch` | Failed as expected: no prerequisite device identity patch exists. |
 | `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Failed as expected: inactive blocked patch is not listed in the active patch pipeline. |
@@ -2171,7 +2180,8 @@ Prerequisite status:
 - T25 depends on T24.
 - T24 is marked `BLOCKED`; its task note exists at
   `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`.
-- T24's upstream dependency chain is blocked because T23 remains `BLOCKED`.
+- T24's upstream dependency chain is blocked because T23 is `READY` but not
+  implemented.
 - No progress entry or task note explicitly accepts incomplete T24 as a
   baseline dependency for T25.
 
@@ -2207,8 +2217,9 @@ Missing prerequisite work from T24:
 Upstream dependency chain still needed before T24 can complete:
 
 - T23 must implement device key generation and storage.
-- T22 must define device identity and DPAPI storage.
-- T20 must complete the login-gate local state and allowlist spec.
+- T22 is complete and defines device identity, DPAPI storage, reset behavior,
+  and private-key bridge boundaries.
+- T20 is complete and defines the login-gate local state and allowlist spec.
 
 Validation commands and results:
 
@@ -2217,7 +2228,7 @@ Validation commands and results:
 | `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T24 is not marked `DONE` in the status column. |
 | `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T24 is marked `BLOCKED`. |
 | `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` | Passed: T24 task note exists. |
-| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: upstream T23 is blocked. |
+| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| READY \\|" echothink-studio-new/docs/progress.md` | Passed: upstream T23 is ready but not implemented. |
 | `rtk rg -n "### T24: Implement Narrow Extension Bridge|### T25: Define Request Proof Payload And Allowlist|Prerequisites: T24" echothink-studio-new/docs/dag-doc.md` | Passed: DAG anchors for T24 and T25 exist. |
 | `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md echothink-studio-new/docs/progress.md` | Passed: the T25 note and shared progress file exist. |
 | `rtk git diff --check` | Passed: no whitespace errors. |
@@ -2275,8 +2286,9 @@ Upstream dependency chain still needed before T25 can complete:
 - T24 must implement the narrow extension bridge and restrict it to the bundled
   workspace extension.
 - T23 must implement device key generation and storage.
-- T22 must define device identity and DPAPI storage.
-- T20 must complete the login-gate local state and allowlist spec.
+- T22 is complete and defines device identity, DPAPI storage, reset behavior,
+  and private-key bridge boundaries.
+- T20 is complete and defines the login-gate local state and allowlist spec.
 
 Validation commands and results:
 
@@ -2455,8 +2467,8 @@ Prerequisite status:
 
 - T33 depends on T05, T08, T10, T13, T19, T21, T23, T26, and T31.
 - T05, T08, T10, T13, T19, T21, and T31 are marked `DONE`.
-- T23 is marked `BLOCKED`; T22 is `READY` but not `DONE`, and the final M5
-  device identity design does not exist.
+- T22 is marked `DONE`; T23 is marked `READY`, but
+  `patches/echothink/0007-device-identity.patch` does not exist yet.
 - T26 is marked `BLOCKED`; T25 is `BLOCKED`, no final proof helper spec exists,
   and T24 is marked `BLOCKED`.
 - No progress row or task note explicitly accepts incomplete T23 or T26 as
@@ -2493,7 +2505,7 @@ Validation commands and results:
 
 | Command | Result |
 |---|---|
-| `rtk rg -n "\\| T(05|08|10|13|19|21|23|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T05, T08, T10, T13, T19, T21, and T31 are `DONE`; T23 and T26 are `BLOCKED`; T33 remains `BLOCKED`. |
+| `rtk rg -n "\\| T(05|08|10|13|19|21|23|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T05, T08, T10, T13, T19, T21, and T31 are `DONE`; T23 is `READY`; T26 and T33 remain `BLOCKED`. |
 | `rtk sed -n '840,861p' echothink-studio-new/docs/dag-doc.md` | Passed: T33 requires T05, T08, T10, T13, T19, T21, T23, T26, and T31. |
 | `rtk ls -l patches/echothink/0006-login-gate.patch` | Passed: T21 login-gate patch exists. |
 | `rtk rg -n "echothink/0006-login-gate.patch" patches/series` | Passed: T21 login-gate patch is active in the patch pipeline. |

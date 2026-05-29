@@ -13,25 +13,26 @@ not provide the device-key implementation that this bridge must call.
 Evidence:
 
 - `docs/progress.md` marks T13 as `DONE`.
-- `docs/progress.md` marks T23 as `BLOCKED`, not `DONE`.
+- `docs/progress.md` marks T22 as `DONE`.
+- `docs/progress.md` marks T23 as `READY`, not `DONE`.
 - `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`
-  is a blocker note and explicitly says no Chromium device identity patch was
-  created.
+  confirms T23 has a completed design prerequisite but no Chromium device
+  identity patch yet.
 - `patches/echothink/0007-device-identity.patch` does not exist.
 - `patches/series` does not list `echothink/0007-device-identity.patch`.
 
 Because the coordination rules require prerequisites to be marked `DONE` or
 explicitly documented as acceptable baseline dependencies, T24 cannot expose a
-bridge API yet. Implementing the bridge without T23 would require inventing the
-device storage, key loading, reset, and private-key boundary contracts that are
-owned by T22 and T23.
+bridge API yet. Implementing the bridge without T23 would require a fake device
+storage/key-loading implementation instead of the real boundary defined by T22
+and implemented by T23.
 
 ## Prerequisite Check
 
 | Prerequisite | Required by | Status | Evidence |
 |---|---|---|---|
 | T13 - Add bundled extension install patch | T24 | DONE | `docs/progress.md` marks T13 `DONE`; the task note records the fixed bundled extension ID `lokdibgfmiemhdoogailbfpdggndpolk` and narrow manifest permissions. |
-| T23 - Implement device key generation and storage | T24 | BLOCKED | `docs/progress.md` marks T23 `BLOCKED`; the T23 note says no `0007-device-identity.patch` was created and no key generation, DPAPI storage, metadata persistence, or reset behavior was implemented. |
+| T23 - Implement device key generation and storage | T24 | READY, not DONE | `docs/progress.md` marks T23 `READY`; the T23 note says no `0007-device-identity.patch` was created and no key generation, DPAPI storage, metadata persistence, or reset behavior was implemented. |
 
 No progress entry or task note explicitly accepts incomplete T23 as a baseline
 dependency for T24.
@@ -45,19 +46,11 @@ Complete T23 before resuming T24. The exact files that need to be updated are:
 - `patches/echothink/0007-device-identity.patch`
 - `patches/series`
 
-T23 itself remains blocked on T22. The upstream prerequisite files and decisions
-are:
+T22 is now complete. The T23 implementation contract is defined by:
 
 - `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`
 - `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`
 - `docs/progress.md`
-- Local device identity field names and meanings.
-- Windows DPAPI private-key storage format and scope.
-- Placement for non-secret device metadata.
-- Persistence behavior across browser restart.
-- Explicit reset behavior for local enrollment state.
-- Native boundary that keeps private key material out of extension JavaScript,
-  logs, docs examples, and progress notes.
 
 After T23 is complete, T24 must implement only the narrow bridge methods:
 
@@ -97,7 +90,7 @@ did not:
   the high-level device identity and request-proof architecture.
 - `docs/dag-doc.md`, which defines T24 prerequisites, required bridge methods,
   and delivery criteria.
-- `docs/progress.md`, which marks T13 `DONE` and T23 `BLOCKED`.
+- `docs/progress.md`, which marks T13 `DONE`, T22 `DONE`, and T23 `READY`.
 - `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`,
   which records the bundled extension ID and narrow manifest boundary.
 - `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`,
@@ -113,7 +106,7 @@ Run from the inherited repository root.
 |---|---|
 | `rtk rg -n "^\\| T13 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T13 is marked `DONE` in the status column. |
 | `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T23 is not marked `DONE` in the status column. |
-| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\||no Chromium implementation patch was created|0007-device-identity.patch" echothink-studio-new/docs/progress.md echothink-studio-new/docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md` | Passed: progress and the T23 note block T24. |
+| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| READY \\||0007-device-identity.patch" echothink-studio-new/docs/progress.md echothink-studio-new/docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md` | Passed: progress marks T23 ready but no device patch exists yet. |
 | `rtk rg -n "### T24: Implement Narrow Extension Bridge|Prerequisites: T13, T23|getDeviceStatus|signProofPayload" echothink-studio-new/docs/dag-doc.md echothink-studio-new/docs/ungoogled_to_echothink_browser_change_plan.md` | Passed: T24 scope and bridge method anchors exist. |
 | `rtk ls -l patches/echothink/0007-device-identity.patch` | Failed as expected: no prerequisite device identity patch exists. |
 | `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Failed as expected: inactive blocked patch is not listed in the active patch pipeline. |

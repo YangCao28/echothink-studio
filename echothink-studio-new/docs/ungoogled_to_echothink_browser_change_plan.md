@@ -506,6 +506,11 @@ Acceptance:
 ### 5.9 Device Identity
 
 Add a local browser component or native extension bridge for device identity.
+The detailed Alpha design is maintained in
+`docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`.
+It is the source of truth for local identity fields, DPAPI current-user storage,
+Local State versus profile preference placement, reset/logout behavior, and
+private-key bridge boundaries.
 
 Implementation:
 

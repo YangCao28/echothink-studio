@@ -355,6 +355,12 @@ Chromium navigation after the readiness flags indicate setup completion.
 ### 5.6 Device Identity
 
 Each installation must have browser-bound device identity.
+The Alpha source of truth is
+`docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`;
+it selects a Windows DPAPI current-user protected private-key blob for Alpha,
+keeps non-secret installation/key metadata in Local State, keeps profile
+enrollment and readiness metadata in profile preferences, and documents reset
+plus private-key bridge boundaries.
 
 Generated or stored locally:
 

@@ -39,7 +39,7 @@ browser candidate for the M7 behavior test pass.
 | Chat and Workspace Context modes | Not run | T15/T16/T17/T18 exist, but runtime behavior was not retested under a validated full Alpha build. |
 | Chat scope metadata | Not run | T16 source work exists, but runtime request metadata was not retested under a validated full Alpha build. |
 | Login gate and allowlist behavior | Not run | T21 now provides `0006-login-gate.patch`, but runtime behavior was not tested because T33 is blocked and no validated full Alpha build exists. |
-| Device identity persistence | BLOCKED | T23 is `BLOCKED`; no `0007-device-identity.patch` exists. |
+| Device identity persistence | BLOCKED | T23 is `READY`, but no `0007-device-identity.patch` exists. |
 | Proof helper signs only allowed Echothink URLs | BLOCKED | T26 is `BLOCKED`; no `0008-request-proof-helper.patch` exists. |
 | Optional `echo://` routes | Not run | T28/T29 exist, but runtime behavior was not retested under a validated full Alpha build. |
 
@@ -53,13 +53,11 @@ Complete and rerun T33 before resuming T35.
 
 T33 cannot complete until:
 
-- T22 is finalized as the M5 device identity design in
-  `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`.
-- T23 creates `patches/echothink/0007-device-identity.patch` and activates it
+- T23 creates `patches/echothink/0007-device-identity.patch` from the completed
+  T22 design and activates it
   in `patches/series`.
-- T24 delivers the narrow extension bridge task note and implementation
-  artifact at `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
-  and any required active patch or `patches/series` entry.
+- T24 delivers the narrow extension bridge implementation artifact and any
+  required active patch or `patches/series` entry.
 - T25 is finalized as the M5 proof helper spec in
   `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`.
 - T26 creates `patches/echothink/0008-request-proof-helper.patch` and activates

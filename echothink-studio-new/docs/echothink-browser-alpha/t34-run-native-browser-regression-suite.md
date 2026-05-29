@@ -30,7 +30,7 @@ blocked implementation artifacts:
 
 | Prerequisite | Required artifact | Current status | Exact files or decisions needed |
 |---|---|---|---|
-| T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` | BLOCKED | Complete the M5 device identity design in `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`, update `docs/progress.md`, create the `0007` patch, and add `echothink/0007-device-identity.patch` to `patches/series` when active. |
+| T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` | READY | T22 is `DONE`; create the `0007` patch from the completed design and add `echothink/0007-device-identity.patch` to `patches/series` when active. |
 | T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` | BLOCKED | Complete T24 bridge work, finalize `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`, update `docs/progress.md`, create the `0008` patch, and add `echothink/0008-request-proof-helper.patch` to `patches/series` when active. |
 
 After those artifacts are active, T33 must rerun full patch validation against

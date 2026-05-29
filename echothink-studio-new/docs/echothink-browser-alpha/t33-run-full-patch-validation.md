@@ -13,7 +13,7 @@ implementation tasks are not complete:
 
 | Prerequisite | Required artifact | Current status | Blocking evidence |
 |---|---|---|---|
-| T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` | BLOCKED | `docs/progress.md` marks T23 `BLOCKED`; T22 is `READY` but no final device identity design exists. |
+| T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` | READY | `docs/progress.md` marks T23 `READY`; T22 is `DONE`, but no device identity implementation patch exists. |
 | T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` | BLOCKED | `docs/progress.md` marks T26 `BLOCKED`; T25 is `BLOCKED` and no final proof helper spec exists. |
 
 The coordination rules require prerequisites to be marked `DONE` or explicitly
@@ -30,11 +30,10 @@ shape and local config utilities.
 
 Complete T23 before resuming T33:
 
-- Finalize `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`
-  as the M5 device identity design.
-- Update `docs/progress.md` so T22 and then T23 can become `DONE`.
 - Create `patches/echothink/0007-device-identity.patch`.
 - Add `echothink/0007-device-identity.patch` to `patches/series` when active.
+- Validate restart persistence, DPAPI storage, and explicit reset behavior
+  against the completed T22 design.
 
 Complete T26 before resuming T33:
 
@@ -78,7 +77,7 @@ Commands were run from the canonical browser patch/config root, where
 
 | Command | Result |
 |---|---|
-| `rtk rg -n "\\| T(05|08|10|13|19|21|23|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T05, T08, T10, T13, T19, T21, and T31 are `DONE`; T23 and T26 are `BLOCKED`; T33 remains `BLOCKED`. |
+| `rtk rg -n "\\| T(05|08|10|13|19|21|23|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T05, T08, T10, T13, T19, T21, and T31 are `DONE`; T23 is `READY`; T26 and T33 remain `BLOCKED`. |
 | `rtk sed -n '840,861p' echothink-studio-new/docs/dag-doc.md` | Passed: T33 requires T05, T08, T10, T13, T19, T21, T23, T26, and T31 before full validation. |
 | `rtk ls -l patches/echothink/0006-login-gate.patch` | Passed: T21 login-gate patch exists. |
 | `rtk rg -n "echothink/0006-login-gate.patch" patches/series` | Passed: T21 login-gate patch is active in the patch pipeline. |

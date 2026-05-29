@@ -74,8 +74,9 @@ complete:
 
 - T23 must implement device key generation and storage, including
   `patches/echothink/0007-device-identity.patch` and its `patches/series` entry.
-- T22 must define device identity and DPAPI storage.
-- T20 must complete the login-gate local state and allowlist spec.
+- T22 is complete and defines device identity, DPAPI storage, reset behavior,
+  and private-key bridge boundaries.
+- T20 is complete and defines the login-gate local state and allowlist spec.
 
 ## T26 Work Not Started
 
@@ -105,7 +106,8 @@ did not:
 - `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`,
   which blocks T26 until the M5 proof helper spec exists.
 - `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`,
-  which documents the upstream device-key blocker for T24 and T25.
+  which documents that T23 is ready but has not implemented the device-key
+  patch required by T24 and T25.
 
 ## Validation
 
@@ -116,7 +118,7 @@ Run from the inherited repository root.
 | `rtk rg -n "^\\| T25 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T25 is not marked `DONE` in the status column. |
 | `rtk rg -n "^\\| T25 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: progress marks T25 `BLOCKED`. |
 | `rtk rg -n "Status: BLOCKED|T26 must not use" echothink-studio-new/docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md` | Passed: the T25 note is a blocker note and explicitly blocks T26 implementation. |
-| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` | Failed as expected: no T24 task note exists. |
+| `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T24 is marked `BLOCKED`. |
 | `rtk ls -l patches/echothink/0008-request-proof-helper.patch` | Failed as expected: no blocked patch artifact was created. |
 | `rtk rg -n "echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive blocked patch is not listed in the active patch pipeline. |
 | `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t26-implement-proof-signing-helper.md echothink-studio-new/docs/progress.md` | Passed: the T26 note and shared progress file exist. |

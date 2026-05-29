@@ -7,17 +7,20 @@ Status: BLOCKED
 
 ## Blocker
 
-T25 depends on T24. T24 is not marked `DONE` in the shared progress source and
-no T24 task note exists in `docs/echothink-browser-alpha/`.
+T25 depends on T24. T24 is not marked `DONE` in the shared progress source, and
+no bridge implementation exists for T25 to specify proof payload handoff,
+caller validation, or signing failure behavior against.
 
 Current evidence:
 
-- `docs/progress.md` has no T24 status row.
-- No `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
-  task note exists.
-- T23, the upstream prerequisite for T24, is marked `BLOCKED`.
-- T23 is blocked because T22 is marked `BLOCKED`, and T22 is blocked on the
-  incomplete T20 login-gate spec.
+- `docs/progress.md` marks T24 as `BLOCKED`, not `DONE`.
+- `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
+  exists, but it records a prerequisite blocker rather than a bridge
+  implementation.
+- T24 remains blocked because T23 is not `DONE` and no
+  `patches/echothink/0007-device-identity.patch` exists.
+- T22 is now `DONE` and supplies the device identity, DPAPI storage, reset, and
+  private-key bridge-boundary design. T23 is `READY` but not implemented.
 
 Because the coordination rules require prerequisites to be marked `DONE` or
 explicitly documented as acceptable baseline dependencies, T25 cannot define the
@@ -28,42 +31,30 @@ behavior yet.
 
 | Prerequisite | Required by | Status | Evidence |
 |---|---|---|---|
-| T24 - Implement narrow extension bridge | T25 | MISSING | `docs/progress.md` has no T24 row, no T24 task note exists, and no completed bridge API evidence is available. |
+| T24 - Implement narrow extension bridge | T25 | BLOCKED | `docs/progress.md` marks T24 `BLOCKED`; the T24 task note says no bridge API or device-key implementation exists. |
 
 No progress entry or task note explicitly accepts incomplete T24 as a baseline
 dependency for T25.
 
 ## Missing Prerequisite Work
 
-Complete T24 before resuming T25. The exact files that need to be updated or
-created are:
+Complete T24 before resuming T25. The T24 evidence must confirm:
 
-- `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
-- `docs/progress.md`
-- The T24 bridge implementation artifact, including any required
-  `patches/echothink/` patch and `patches/series` entry if T24 is delivered as
-  a Chromium patch.
-
-The T24 evidence must confirm these decisions before T25 can safely define the
-proof helper contract:
-
-- The bridge methods available to the bundled workspace extension.
-- The caller restriction to the fixed bundled workspace extension identity.
-- The bridge error model for missing device, locked key, unsupported platform,
-  and explicit reset.
-- The boundary that allows signature requests without exposing private key
-  material to extension JavaScript, logs, docs examples, or progress notes.
+- Bridge methods available to the bundled workspace extension.
+- Caller restriction to the fixed bundled workspace extension identity.
+- Bridge error model for missing device, locked key, unsupported platform, and
+  explicit reset.
+- Boundary that allows signature requests without exposing private key material
+  to extension JavaScript, logs, docs examples, or progress notes.
 - How bridge request inputs are accepted, normalized, and rejected before they
   reach the signing helper.
 
-The dependency chain also requires unblocking T23, T22, and T20:
+The upstream device chain now has its design but still needs implementation:
 
-- `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`
-- `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`
-- `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`
-- `docs/progress.md`
-- `patches/echothink/0007-device-identity.patch` and its `patches/series`
-  entry once T23 can be implemented.
+- T22 is complete at
+  `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`.
+- T23 must create `patches/echothink/0007-device-identity.patch` and add its
+  `patches/series` entry before T24 can complete.
 
 ## T25 Work Not Started
 
@@ -92,9 +83,11 @@ exposed.
   high-level DPoP-style proof-of-possession architecture.
 - `docs/dag-doc.md`, which defines T24 and T25 prerequisites and delivery
   criteria.
-- `docs/progress.md`, which lacks a T24 row and marks T23 `BLOCKED`.
-- `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`,
-  which blocks T24's upstream dependency chain.
+- `docs/progress.md`, which marks T24 `BLOCKED`, T23 `READY`, and T22 `DONE`.
+- `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`,
+  which blocks T25 until the bridge exists.
+- `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`,
+  which supplies the completed upstream private-key boundary design.
 
 ## Validation
 
@@ -103,11 +96,10 @@ Run from the inherited repository root.
 | Command | Result |
 |---|---|
 | `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T24 is not marked `DONE` in the status column. |
-| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` | Failed as expected: no T24 task note exists. |
-| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: upstream T23 is blocked. |
+| `rtk rg -n "^\\| T24 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T24 is marked `BLOCKED`. |
+| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| READY \\|" echothink-studio-new/docs/progress.md` | Passed: T23 is ready but not implemented. |
+| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md` | Passed: the T24 blocker note exists. |
 | `rtk rg -n "### T24: Implement Narrow Extension Bridge|### T25: Define Request Proof Payload And Allowlist|Prerequisites: T24" echothink-studio-new/docs/dag-doc.md` | Passed: DAG anchors for T24 and T25 exist. |
-| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md echothink-studio-new/docs/progress.md` | Passed: the T25 note and shared progress file exist. |
-| `rtk git diff --check` | Passed: no whitespace errors. |
 
 ## Known Limitations
 
@@ -115,5 +107,5 @@ Run from the inherited repository root.
   spec.
 - T26 must not use this document as authorization to implement
   `patches/echothink/0008-request-proof-helper.patch`.
-- The broader browser Alpha docs were left unchanged because no T25 design
-  decisions are complete yet.
+- The broader browser Alpha proof-helper docs remain unchanged because no T25
+  design decisions are complete yet.
