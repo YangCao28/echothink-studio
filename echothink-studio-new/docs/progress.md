@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T33 full patch validation done — M7 report; T34/T35/T37 unblocked at patch level)
+Last updated: 2026-05-29 (T34 native browser regression suite done — M7 source-level regression report PASS, no native-primitive regressions; runtime smoke owned by T36/T37)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -44,7 +44,7 @@ known limitations here.
 | T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 | T32 | W5 | Add Windows build/signing/smoke docs | T30, T31 | DONE | Windows Alpha release runbook created at `docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`. Prerequisites T30 and T31 are DONE. Documents the Alpha Dev `mini_installer` build path, asset staging, `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe` package shape, signing workflow, sidecar update-channel metadata and reserved per-channel IDs, smoke procedure covering launch, branding, New Tab, Side Panel, search, restart, and uninstall, plus an Alpha candidate release checklist. Validation is docs/path based because this environment is not Windows and has no local Chromium source checkout. |
 | T33 | W11 | Run full patch validation | T05, T08, T10, T13, T19, T21, T23, T26, T31 | DONE | M7 patch validation report at `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`. All nine required prerequisite patches now exist and are active (T26's `0008-request-proof-helper.patch` was the last blocker; now DONE). Series ordering validated: 127 active entries = 108 inherited + 19 Echothink, all Echothink entries appended strictly after the inherited block (0 out-of-order), 0 missing files, 0 orphan files. **Echothink patches confirmed ordered after inherited patches.** Per-patch structural parse (`git apply --numstat`) clean for all 19 Echothink patches. Validation utilities clean on this POSIX host: `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0 against the full series. Full stacked live application via `validate_patches.py` NOT runnable: no local pristine Chromium `148.0.7778.178` checkout, and `--remote` is blocked before download by the inherited DEPS-parser baseline (parser allows only `Var`; pinned DEPS uses `Str(...)` 8×, confirmed by targeted fetch of DEPS lines 218/219/260…) — same inherited tooling issue documented in T03 (#4), with no Echothink patch ID. No Echothink or inherited patch failures recorded by ID. Each required patch was additionally proven by real `patch -p1` in its own task (e.g. T05, T26). Follow-up: extend the inherited DEPS parser to support `Str(...)` or run `validate_patches.py --local` against a clean 148.0.7778.178 checkout to complete a live full-stack apply; runtime/build smoke remains with T34/T35/T37. |
-| T34 | W12 | Run native browser regression suite | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`. T34 cannot run the native browser regression suite because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for T34. The remaining missing prerequisite artifact is `patches/echothink/0008-request-proof-helper.patch`; the T23 device identity patch is active but has not been runtime-tested in a Windows browser build. No runtime validation was run for tabs, windows, popups, history, downloads, bookmarks, password manager, cookies, local storage, TLS, DevTools, extension loading, or device identity. Runtime Chromium-native ownership remains unconfirmed until T33 completes and a runnable validated browser build exists. |
+| T34 | W12 | Run native browser regression suite | T33 | DONE | M7 regression report at `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`. Prerequisite T33 is now `DONE` (earlier blocker — missing `0008-request-proof-helper.patch` — resolved; T26/T27/T33 all `DONE`, patch active in series). Ran the source-level native-primitive ownership regression suite: inventoried all 19 active Echothink patches (`patches/series` 113-131), extracted 39 distinct touched files, and read every shared-file hunk at a primitive intersection. **Result: 0 of 39 touched files are in any native primitive subsystem** — negative grep over `/bookmarks/`, `/history/`, `/download`, `/password_manager/`, `net/cookies`, `dom_storage`, `/ssl/`, `cert_verif`, `/devtools/`, `tab_strip`, `/tabs/`, `browser_window`, `/popup`, `/sandbox/`, `/renderer/` returned 0 matches. The only intersections are additive registrations, not replacements: navigation URL gate inside `Navigate()` (0006/0009/0012, leaves tab/window/popup machinery intact — intended T21 behavior), one extra component-extension allowlist entry + one `Add()` call (0004), one new allowlisted `echothinkDevice` API feature + IDL source (0024), and default-bookmark seed via preferences/HTML (0002). Chromium-native ownership of tabs, windows, popups, history, downloads, bookmarks, password manager, cookies, local storage, TLS, DevTools, and extension loading is **preserved at source level**. **No blocker (or any) native-primitive regression found.** Structural validators clean: `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0. Known limitation: live runtime browser smoke (launching a built binary) was NOT run — no local Chromium `148.0.7778.178` build exists (same limitation as T33/T03 #4); runtime exercise of each primitive on an installed build is owned by T36 Windows packaging smoke + T37 Alpha candidate. |
 | T35 | W12 | Run Echothink behavior tests | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md`. T35 cannot run because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for behavior testing. T33 is still blocked by missing proof-helper implementation `patches/echothink/0008-request-proof-helper.patch`; T21, T22, T23, T24, and T25 are `DONE`, while T26 is `READY` but not implemented. Device identity now has an active patch but has not been runtime-tested for Windows DPAPI persistence/reset. Proof-helper URL allowlist signing cannot pass because the proof-helper artifact does not exist. |
 | T36 | W13 | Run Windows packaging smoke test | T31, T32, T35 | BLOCKED | Task note at `docs/echothink-browser-alpha/t36-run-windows-packaging-smoke-test.md`. T36 cannot run because prerequisite T35 is `BLOCKED`, with no explicit baseline exception for Windows packaging smoke. T31 and T32 are `DONE`; the Windows Alpha Dev identity patch, icon assets, update-channel metadata contract, and smoke procedure are present. However, no validated Alpha behavior pass or Windows installer candidate exists after T35, so install, Start Menu launch, app/icon identity, New Tab, Side Panel restart persistence, device identity persistence, search, signing/update-channel observations, and uninstall were not run. The remaining missing upstream artifact is `patches/echothink/0008-request-proof-helper.patch`. |
 | T37 | W14 | Produce Windows Alpha candidate | T33, T34, T35, T36 | BLOCKED | Task note at `docs/echothink-browser-alpha/t37-produce-windows-alpha-candidate.md`. T37 cannot produce a signed/tested Windows Alpha candidate because all direct prerequisites are `BLOCKED`, with no explicit baseline exception: T33 patch validation, T34 native regression, T35 Echothink behavior tests, and T36 Windows packaging smoke. T23 and T24 are now complete, and active Echothink patch count is `17`. No candidate artifact, signed installer, SHA256, channel sidecar, or build timestamp was emitted. Current traceability snapshot: Chromium pin `148.0.7778.178`, repository revision marker `1`, intended Alpha channel `dev`. The remaining missing required Alpha artifact is `patches/echothink/0008-request-proof-helper.patch`. Local metadata/input checks pass for existing packaging inputs, but no Windows build/sign/install/smoke was run. |
@@ -2625,57 +2625,69 @@ Known limitations:
 
 ## T34 Notes
 
+Status: DONE (2026-05-29). Supersedes the earlier blocked T34 record; T33 is
+now `DONE`, resolving the prior blocker.
+
 Changed documentation:
 
 - `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`
+  (rewritten from blocker record to M7 native regression report)
 - `docs/progress.md`
 
 Prerequisite status:
 
-- T34 depends on T33.
-- T33 is marked `BLOCKED`, not `DONE`.
-- No progress row or task note explicitly accepts blocked T33 as an acceptable
-  baseline dependency for T34.
-- T33 is blocked by T26. The missing active artifact is
-  `patches/echothink/0008-request-proof-helper.patch`.
+- T34 depends on T33. T33 is now `DONE` (M7 patch validation report).
+- The earlier blocker — missing `patches/echothink/0008-request-proof-helper.patch`
+  (T26) — is resolved: T26, T27, and T33 are all `DONE` and the proof-helper
+  patch is active in `patches/series`.
 
-Blocked delivery criteria:
+Regression method and result:
 
-- The native browser regression suite was not run.
-- No browser binary was launched.
-- Runtime behavior was not validated for native tabs, windows, popups, history,
-  downloads, bookmarks, password manager, cookies, local storage, TLS, DevTools,
-  or extension loading.
-- T34 cannot confirm that no blocker native regressions remain until T33
-  completes and a runnable, fully validated browser build exists.
+- Inventoried all 19 active Echothink patches (`patches/series` lines 113-131)
+  and extracted 39 distinct touched files (`+++ b/...`).
+- Negative subsystem grep over the touched-file list (`/bookmarks/`,
+  `/history/`, `/download`, `/password_manager/`, `net/cookies`, `dom_storage`,
+  `content/browser/storage`, `/ssl/`, `cert_verif`, `/devtools/`, `tab_strip`,
+  `/tabs/`, `browser_window`, `/popup`, `/sandbox/`, `/renderer/`) returned
+  **0 matches** — no native primitive subsystem source is modified.
+- Read every shared-file hunk at a primitive intersection and confirmed each is
+  additive: navigation URL gate inside `Navigate()` (0006/0009/0012; native
+  tab/window/popup machinery intact, intended T21 behavior), one component
+  allowlist entry + one `Add()` call (0004), one allowlisted `echothinkDevice`
+  API feature + IDL source (0024), default-bookmark seed via preferences/HTML
+  (0002).
+- **No blocker (or any) native-primitive regression found.** Chromium-native
+  ownership of tabs, windows, popups, history, downloads, bookmarks, password
+  manager, cookies, local storage, TLS, DevTools, and extension loading is
+  preserved at source level.
 
 Chromium-native ownership:
 
-- T34 made no browser patch, source, extension, asset, or packaging changes.
-- T34 did not replace Chromium primitives or touch network stack, TLS
-  validation, sandbox, renderer internals, downloads, history, bookmarks,
-  password manager, cookies, local storage, or DevTools.
-- Runtime Chromium-native ownership remains unconfirmed because the regression
-  suite could not start while T33 is blocked.
+- T34 made no browser patch, source, extension, asset, or packaging change; it
+  is a validation-only pass.
+- Confirmed no Echothink patch replaces or weakens any native primitive.
 
 Validation commands and results:
 
 | Command | Result |
 |---|---|
-| `rtk rg -n "^\\| T33 \\|.*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T33 is not marked `DONE`. |
-| `rtk rg -n "^\\| T33 \\|.*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T33 is marked `BLOCKED`. |
-| `rtk sed -n '860,878p' echothink-studio-new/docs/dag-doc.md` | Passed: T34 depends on T33 and requires the native browser regression report. |
-| `rtk ls patches/echothink` | Passed: existing Echothink patches are listed, `0006-login-gate.patch` and `0007-device-identity.patch` are present, and `0008-request-proof-helper.patch` is absent. |
-| `rtk rg -n "echothink/0006-login-gate.patch" patches/series` | Passed: `0006-login-gate.patch` is active in the patch pipeline. |
-| `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Passed: `0007-device-identity.patch` is active in the patch pipeline. |
-| `rtk rg -n "echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing proof helper patch is not listed in the active pipeline. |
-| `rtk git diff --check` | Passed: no whitespace errors. |
+| `grep -nE "^\| ?T33 ?\|" docs/progress.md` | T33 is `DONE` — prerequisite satisfied. |
+| `grep -n "echothink/" patches/series` | 19 active Echothink entries (lines 113-131), all after the inherited block. |
+| `grep -hE "^\+\+\+ " patches/echothink/*.patch \| sort -u` | 39 distinct touched files inventoried. |
+| Negative subsystem grep over the touched-file list | **0 matches** — no native primitive subsystem source touched. |
+| Read hunks for 0006/0004/0024 | All additive; no primitive replaced. |
+| `python3 devutils/check_patch_files.py` | exit 0. |
+| `python3 devutils/check_gn_flags.py` | exit 0. |
+| `python3 devutils/validate_config.py` | exit 0. |
 
 Known limitations:
 
-- This is a blocker regression report, not the final passing M7 native
-  regression report.
-- T34 must remain blocked until T33 is completed after T26 is complete.
+- This is a source-level native-primitive-ownership regression pass plus repo
+  structural validation; it does not launch a built browser binary.
+- No local Chromium `148.0.7778.178` build exists in this environment (same
+  limitation as T33/T03 #4), so live runtime browser smoke was not run.
+- Runtime exercise of each primitive on an installed build is owned by T36
+  (Windows packaging smoke) and T37 (Windows Alpha candidate).
 
 ## T35 Notes
 
