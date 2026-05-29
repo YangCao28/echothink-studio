@@ -393,8 +393,15 @@ The active Alpha resolver is
 `patches/echothink/0009-echo-protocol-router.patch`; implementation notes are in
 `docs/echothink-browser-alpha/t28-implement-optional-resolver.md`. It rewrites
 only exact known route shapes to HTTPS app URLs, clears the `echo://` referrer,
-and does not carry authorization or device-proof semantics. The invalid-route
-fallback page remains a separate T29 task.
+and does not carry authorization or device-proof semantics.
+
+The invalid-route fallback is
+`patches/echothink/0012-invalid-echo-route-fallback.patch`; implementation notes
+are in
+`docs/echothink-browser-alpha/t29-add-invalid-fallback-page.md`. Unsupported or
+invalid `echo://` routes are rewritten to
+`chrome://echothink-invalid-echo` without carrying the original route, route
+segments, query, or fragment into the fallback URL or page content.
 
 ## 6. Backend Service Contracts
 

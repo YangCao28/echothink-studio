@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T32 merged)
+Last updated: 2026-05-29 (T29 merged)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -30,6 +30,7 @@ known limitations here.
 | T21 | W5 | Implement login-required startup gate | T20 | BLOCKED | T21 cannot start because prerequisite T20 is not marked `DONE` and no final login-gate spec exists. `docs/progress.md` marks T20 `READY`, says the M4 spec is still pending, and explicitly says T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. The current T20 note is also still a blocker note and states no login-gate spec was authored. No Chromium patch was created, `patches/series` was not changed, and protected browser areas remain untouched. Task note: `docs/echothink-browser-alpha/t21-implement-login-required-startup-gate.md`. |
 | T22 | W5 | Define device identity and DPAPI storage | T00, T20 | BLOCKED | Task note created at `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`. T00 is `DONE`, but T20 is not `DONE` or explicitly accepted as a baseline dependency for T22: this file marks T20 `READY`, and the T20 task note still says `Status: BLOCKED` with no login-gate spec authored. T22 cannot define device identity fields, DPAPI private-key storage, metadata placement, reset/logout behavior, or private-key bridge boundaries until T20 completes the M4 login-gate spec. Missing T20 decisions: auth/device readiness flags, unauthenticated allowlist, blocked-navigation behavior, setup-completion criteria, diagnostics/support exceptions, and reset/logout semantics for non-secret enrollment state. No patch or device identity design was produced. |
 | T28 | W5 | Implement optional `echo://` resolver | T10 | DONE | Task note at `docs/echothink-browser-alpha/t28-implement-optional-resolver.md`. Prerequisite T10 is DONE. Created `patches/echothink/0009-echo-protocol-router.patch` and inserted `echothink/0009-echo-protocol-router.patch` into `patches/series` after `echothink/0011-first-run-gate-shell.patch` and before `echothink/0010-windows-packaging-identity.patch`. Patch adds a narrow `chrome/browser/ui/browser_navigator.cc` navigation helper that rewrites only known `echo://` route shapes (`dashboard`, `project/{id}`, `task-wave/{id}`, `app-domain/{domain}/{instance}`, `artifact/{id}`, `approval/{id}`) to matching `https://app.echothink.ai/` URLs, accepts only unreserved non-empty segments, rejects query/fragment payloads, and clears the `echo://` referrer. No backend authorization, device proof, protected content, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Unsupported/invalid route UX remains T29. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and real `patch -p1` against the pinned Chromium `148.0.7778.178` `browser_navigator.cc` source copy all pass. |
+| T29 | W6 | Add invalid `echo://` route fallback page | T28 | DONE | Task note at `docs/echothink-browser-alpha/t29-add-invalid-fallback-page.md`. Prerequisite T28 is DONE. Created `patches/echothink/0012-invalid-echo-route-fallback.patch` and inserted `echothink/0012-invalid-echo-route-fallback.patch` in `patches/series` immediately after `echothink/0009-echo-protocol-router.patch`. Patch keeps T28 valid route resolution intact and rewrites unsupported/invalid `echo://` navigations to local `chrome://echothink-invalid-echo`, clearing the original referrer and carrying no original route, segments, query, or fragment into the fallback URL or page. The WebUI page is static/script-free, contains no workspace/resource data, and links only to dashboard, setup, and support. No backend service, gateway logic, network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools behavior changed. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py`, and targeted `git apply --check --include=chrome/browser/ui/browser_navigator.cc` against the existing post-T28 source copy all pass. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 | T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 | T32 | W5 | Add Windows build/signing/smoke docs | T30, T31 | DONE | Windows Alpha release runbook created at `docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`. Prerequisites T30 and T31 are DONE. Documents the Alpha Dev `mini_installer` build path, asset staging, `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe` package shape, signing workflow, sidecar update-channel metadata and reserved per-channel IDs, smoke procedure covering launch, branding, New Tab, Side Panel, search, restart, and uninstall, plus an Alpha candidate release checklist. Validation is docs/path based because this environment is not Windows and has no local Chromium source checkout. |
@@ -1258,6 +1259,81 @@ Known limitations:
   `echo://` fallback page.
 - The browser-side mapper intentionally does not accept query strings,
   fragments, encoded path separators, or non-unreserved path characters.
+
+## T29 Notes
+
+Changed files:
+
+- `patches/echothink/0012-invalid-echo-route-fallback.patch` (new Echothink patch)
+- `patches/series` (inserted `echothink/0012-invalid-echo-route-fallback.patch`
+  immediately after `echothink/0009-echo-protocol-router.patch`)
+- `docs/echothink-browser-alpha/t29-add-invalid-fallback-page.md` (new task note)
+- `docs/ungoogled_to_echothink_browser_change_plan.md` (recorded active invalid
+  route fallback behavior)
+- `docs/echothink_browser_construction.md` (recorded active invalid route
+  fallback patch)
+- `docs/progress.md` (this file)
+
+Prerequisite status:
+
+- T29 depends on T28.
+- T28 is marked `DONE` and its active patch
+  `patches/echothink/0009-echo-protocol-router.patch` remains listed in
+  `patches/series`.
+- The canonical-root mismatch (T00) is carried forward: docs live under
+  `echothink-studio-new/docs`, while active browser patches and `patches/series`
+  live in the inherited browser root one directory up.
+
+Implementation decisions:
+
+- Added `patches/echothink/0012-invalid-echo-route-fallback.patch` as the T29
+  patch rather than changing T28 retroactively.
+- Valid `echo://` routes still resolve through T28's `ResolveEchoURL()` mapping.
+- Unsupported or invalid `echo://` routes now rewrite to the local
+  `chrome://echothink-invalid-echo` WebUI page.
+- The fallback rewrite clears the original `echo://` referrer and does not place
+  the original route, route segments, query string, or fragment in the fallback
+  URL.
+- The fallback page is static, script-free, served from an in-memory
+  URLDataSource, and registered alongside the existing Echothink first-run
+  local WebUI.
+- The page does not display workspace data, project IDs, task-wave IDs,
+  app-domain values, artifact IDs, approval IDs, queries, fragments, or the
+  original route. It links only to `https://app.echothink.ai/dashboard`,
+  `chrome://echothink-first-run`, and `https://app.echothink.ai/support`.
+- No backend authorization, device proof, gateway logic, search ranking, chat
+  orchestration, workflow orchestration, network stack, TLS validation, sandbox,
+  renderer internals, downloads, history, bookmarks, password manager, cookies,
+  or DevTools behavior changed.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk git apply --numstat patches/echothink/0012-invalid-echo-route-fallback.patch` | Passed: `20 6 chrome/browser/ui/browser_navigator.cc`, `111 0 chrome/browser/ui/webui/echothink_invalid_echo.h`, `2 0 chrome/browser/ui/webui/chrome_web_ui_configs.cc`, `1 0 chrome/common/webui_url_constants.cc`. |
+| `rtk python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `rtk python3 devutils/validate_config.py` | Passed, exit 0. |
+| `rtk git apply --check --include=chrome/browser/ui/browser_navigator.cc .../patches/echothink/0012-invalid-echo-route-fallback.patch` from `/private/tmp/echothink-t28-chromium` | Passed against the existing post-T28 `browser_navigator.cc` source copy. |
+
+Build-pipeline application command:
+
+- `patch -p1 -i patches/echothink/0012-invalid-echo-route-fallback.patch` from
+  the pinned Chromium `148.0.7778.178` source root after inherited patches and
+  active Echothink predecessors through
+  `echothink/0009-echo-protocol-router.patch` have applied.
+
+Known limitations:
+
+- No full Chromium source checkout, compile, or runtime browser smoke test was
+  run in this environment.
+- Full `patch -p1` application against Chromium source was not run because this
+  environment only had the T28 `browser_navigator.cc` source copy available,
+  not the WebUI registration source files.
+- A built browser still needs to verify that invalid examples such as
+  `echo://unknown`, `echo://project`, `echo://project/secret?token=1`, and
+  `echo://artifact/private#frag` show `chrome://echothink-invalid-echo` while
+  valid examples such as `echo://dashboard` still resolve to HTTPS app routes.
 
 ## T31 Notes
 

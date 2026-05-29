@@ -533,6 +533,12 @@ Acceptance:
 - Invalid routes show a local route-error page.
 - Route resolution does not expose protected data.
 
+Alpha implementation details are recorded in
+`docs/echothink-browser-alpha/t28-implement-optional-resolver.md` and
+`docs/echothink-browser-alpha/t29-add-invalid-fallback-page.md`. Invalid
+`echo://` routes fail to `chrome://echothink-invalid-echo` without displaying or
+forwarding the original route.
+
 ### 5.12 Windows Packaging And Update Client
 
 Make Windows the first production target.
