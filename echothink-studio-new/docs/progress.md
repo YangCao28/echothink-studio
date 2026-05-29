@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29
+Last updated: 2026-05-29 (T11 added)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -24,7 +24,8 @@ known limitations here.
 | T19 | W2 | Implement default search provider | T08 | DONE | Created `patches/echothink/0005-default-search-provider.patch` and appended it to the Echothink tail block after `echothink/0002-default-policies-and-preferences.patch`. The patch re-points the inherited "No Search" prepopulated engine slot to Echothink Search and adds `default_search_provider` values to the T08 initial-preferences file: search URL `https://search.echothink.ai/search?q={searchTerms}` and suggest URL `https://search.echothink.ai/suggest?q={searchTerms}`. Search suggestions remain disabled by default over the inherited baseline and use the Echothink suggest route only when enabled. No omnibox internals, direct URL navigation, network stack, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. Task note: `docs/echothink-browser-alpha/t19-implement-default-search-provider.md`. |
 | T12 | W3 | Scaffold bundled Manifest V3 workspace extension | T02 | DONE | Created source-only extension scaffold at `extensions/echothink-workspace/` in the canonical browser root: MV3 `manifest.json`, background service worker, Side Panel HTML/CSS/JS, narrow content bridge, and extension-local asset. T02 is DONE; the canonical-root mismatch is carried forward and recorded in the task note. Manifest declares only `sidePanel`, `storage`, `tabs`, `activeTab`, and `scripting`; host permissions are limited to `app.echothink.ai`, `auth.echothink.ai`, `api.echothink.ai`, and `search.echothink.ai`. No backend/business logic was added. T13 has since added the fixed public key and bundled install patch. Task note: `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`. |
 | T13 | W4 | Add bundled extension install patch | T12 | DONE | Created `patches/echothink/0004-bundled-workspace-extension.patch` and inserted it into `patches/series` between `echothink/0003-new-tab-and-first-run.patch` and `echothink/0005-default-search-provider.patch`. T12 is DONE. The patch bundles the workspace shell as a Chromium component extension, allowlists only fixed extension ID `lokdibgfmiemhdoogailbfpdggndpolk`, registers it in `ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages()`, and adds resources under `chrome/browser/resources/echothink_workspace/`. Source manifest now carries the same public key, no `update_url`, exact permissions `sidePanel`, `storage`, `tabs`, `activeTab`, `scripting`, and only Echothink-owned host permissions. No extension permission model weakening or Web Store replacement path was added. Task note: `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`. |
-| T20 | W4 | Define login gate local state and allowlist | T10, T11 | BLOCKED | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. T10 is `DONE`, but T11 is missing from this progress file and no T11 task note exists. T20 is blocked until T11 is completed or `docs/progress.md` explicitly documents that T11 is an acceptable baseline dependency satisfied by T10's first-run shell work, with concrete source anchors and validation. No login-gate spec, allowlist, setup completion criteria, patch, backend logic, gateway logic, or browser behavior change was produced. |
+| T11 | W4 | Add first-run shell | T10 | DONE | Created `patches/echothink/0011-first-run-gate-shell.patch` and appended `echothink/0011-first-run-gate-shell.patch` to the Echothink series tail (after `echothink/0005`). Establishes the M2 first-run **gate shell** by reusing T10's `chrome://echothink-first-run` page (no new page) and making a single narrow first-run-only edit to the `AddFirstRunTabs` block in `chrome/browser/chrome_browser_main.cc` so that on first launch the browser opens **only** the gate shell — suppressing the inherited `chrome://ungoogled-first-run` how-to tab and the normal-profile workspace / New Tab tabs (`master_prefs_->new_tabs`) before setup. The shell's primary CTAs are Sign in (`auth.echothink.ai/login`) and Enroll device (`auth.echothink.ai/device/enroll`), so first launch leads to login/enrollment. No navigation interception, auth-readiness flags, or post-setup restoration — those are owned by T20 (spec) and T21 (`echothink/0006-login-gate.patch`). No policy/pref change; no business logic; no network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools change; non-first-run startup untouched. Patch number `0011` chosen to avoid the change plan's reserved band (0004/0006–0010). Validated: `git apply --numstat` (12/3), `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0; real `patch -p1` applied cleanly against a reconstructed post-`0003` block. Task note: `docs/echothink-browser-alpha/t11-add-first-run-shell.md`. |
+| T20 | W4 | Define login gate local state and allowlist | T10, T11 | READY | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. Both prerequisites are now `DONE` (T10; and T11, merged in this change — see the T11 row above and task note `t11-add-first-run-shell.md`). The earlier `BLOCKED` state (recorded when T11 was missing) is therefore resolved and T20 may proceed. Still pending: the M4 login-gate spec itself (local auth/device readiness flags, unauthenticated navigation allowlist, blocked-navigation behavior, setup-completion criteria, diagnostics/support exceptions). T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 
 ## T00 Notes
@@ -1026,3 +1027,87 @@ Known limitations:
 - The `chrome://echothink-diagnostics` route is referenced by T10, but its
   diagnostics WebUI ownership and readiness still need to be resolved before it
   can be relied on as a final login-gate exception.
+
+## T11 Notes
+
+Changed files:
+
+- `patches/echothink/0011-first-run-gate-shell.patch` (new Echothink patch)
+- `patches/series` (appended `echothink/0011-first-run-gate-shell.patch` to the
+  Echothink tail block after `echothink/0005-default-search-provider.patch`)
+- `docs/echothink-browser-alpha/t11-add-first-run-shell.md` (new task note)
+- `docs/progress.md` (this file)
+
+Native files the patch touches:
+
+- `chrome/browser/chrome_browser_main.cc` (gate the first-run `AddFirstRunTabs`
+  block so the Echothink first-run shell is the sole first-run tab)
+
+Prerequisite status:
+
+- T11 depends on T10; T10 is marked `DONE`. The canonical-root mismatch (T00) is
+  carried forward: the patch and `patches/series` live in the inherited tree one
+  directory up, while this note lives under `echothink-studio-new/docs`.
+
+Scope boundaries (avoids overlap / patch collision):
+
+- T10 (`0003`) owns the shell **page** `chrome://echothink-first-run` and opening
+  it on first run additively.
+- T11 (this task, `0011`) owns the first-run **gate**: on first launch present
+  ONLY the gate shell; suppress the inherited `chrome://ungoogled-first-run`
+  how-to tab and the normal-profile workspace / New Tab tabs
+  (`master_prefs_->new_tabs`) before setup.
+- T20 (spec) + T21 (`0006-login-gate.patch`) own the ongoing login gate:
+  auth/device readiness flags, the unauthenticated navigation allowlist,
+  blocked-navigation enforcement + explanation page, and restoring normal
+  browsing after setup. T11 deliberately adds no navigation interception.
+
+Implementation decisions:
+
+- Reuse the existing `chrome://echothink-first-run` shell (no second page), per
+  the brief ("reuse the New Tab fallback style where possible", "keep the shell
+  minimal and service-oriented"). The shell is static, script-free, renders
+  offline, links only to sign-in / device enrollment / diagnostics / update /
+  support/download, and embeds no workspace or business data.
+- Single narrow edit inside `if (first_run::IsChromeFirstRun())`: replace the
+  three `AddFirstRunTabs` calls (echothink shell + inherited how-to + workspace
+  tabs) with a single call that opens only the echothink shell. The inherited
+  `--app`/`--app-id` guard is preserved; non-first-run startup is untouched; a
+  New Tab still resolves to `https://app.echothink.ai/newtab` (seeded by `0002`).
+- Patch number `0011` chosen to avoid the change plan's reserved band
+  (`0004` = bundled extension / T13, parallel in W4; `0006` = login gate / T21;
+  `0007`–`0010` = device identity / request proof / echo router / packaging).
+  Series order, not the integer, governs application: `0011` sorts after `0003`,
+  so the first-run block `0003` introduced is present when `0011` applies.
+
+Validation commands and results (run from the inherited repository root):
+
+| Command | Result |
+|---|---|
+| `git apply --numstat patches/echothink/0011-first-run-gate-shell.patch` | Passed (exit 0): `12 3 chrome/browser/chrome_browser_main.cc`. |
+| `python3 devutils/check_patch_files.py` | Passed (exit 0): patch parses, referenced in series, no duplicates, no unused. |
+| `python3 devutils/check_gn_flags.py` | Passed (exit 0). |
+| `python3 devutils/validate_config.py` | Passed (exit 0; clean on POSIX). |
+| Series file-mapping loop | `missing_count=0`; Echothink tail `0001, 0002, 0003, 0005, 0011`, contiguous after all inherited patches. |
+| Real `patch -p1` against a reconstructed post-`0003` `chrome_browser_main.cc` | Passed: dry-run exit 0, applied cleanly; resulting first-run block contains only `AddFirstRunTabs({GURL("chrome://echothink-first-run")})`, with the `ungoogled-first-run` and `master_prefs_->new_tabs` lines removed. |
+
+Build-pipeline application command (deferred; no local Chromium checkout):
+
+- `patch -p1 < patches/echothink/0011-first-run-gate-shell.patch` from the pinned
+  Chromium 148.0.7778.178 source root after inherited patches and after
+  `echothink/0001..0003`, or
+  `python3 devutils/validate_patches.py --local <unmodified-chromium-src>`.
+
+Known limitations:
+
+- No full Chromium source checkout locally, so real `patch -p1` was validated
+  against a reconstructed post-`0003` fragment, not the full pinned tree, and no
+  runtime browser smoke test was run. Exact `@@` offsets must be confirmed at
+  build time; `patch -p1` fuzzy matching should absorb small drift.
+- First-run *presentation* gate only — no ongoing navigation blocking until T21
+  lands `echothink/0006-login-gate.patch`.
+- Suppressing `master_prefs_->new_tabs` at first run also suppresses any
+  enterprise-configured `first_run_tabs` for that first launch (intentional for a
+  gated first launch; noted for T30/T31 packaging).
+- `chrome://echothink-diagnostics` (referenced by the reused shell) remains a
+  known dead `chrome://` link until its owning task lands.
