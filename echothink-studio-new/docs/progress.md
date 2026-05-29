@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-28
+Last updated: 2026-05-29
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -23,6 +23,7 @@ known limitations here.
 | T10 | W3 | Implement New Tab route and fallback | T08, T09 | DONE | Created `patches/echothink/0003-new-tab-and-first-run.patch` and inserted it into `patches/series` between `echothink/0002` and `echothink/0005`. The authenticated New Tab route to `https://app.echothink.ai/newtab` already comes from T08's `0002` (inherited `HandleNewTabPageLocationOverride()` hook) and is NOT re-edited, so the patches never collide. T10 adds the local fallback/first-run page `chrome://echothink-first-run` (new file `chrome/browser/ui/webui/echothink_first_run.h`, reusing the inherited `first-run-page.patch` URLDataSource pattern), registers it in `chrome_web_ui_configs.cc`, adds the `echothink-first-run` host in `webui_url_constants.cc`, and opens it as the first first-run tab in `chrome_browser_main.cc` (additive, before the inherited ungoogled-first-run tab). The page is static, script-free, renders fully offline, and links ONLY to login, device enrollment, diagnostics (`chrome://echothink-diagnostics`), update, and support/download — no workspace/business data. No network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools changes; incognito New Tab behavior untouched. Validated: `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` exit 0; `git apply --numstat` parses cleanly (4 files). Real `patch -p1` application and runtime smoke deferred to build pipeline (no local Chromium checkout, per T03). Task note: `docs/echothink-browser-alpha/t10-implement-new-tab-route-and-fallback.md`. |
 | T19 | W2 | Implement default search provider | T08 | DONE | Created `patches/echothink/0005-default-search-provider.patch` and appended it to the Echothink tail block after `echothink/0002-default-policies-and-preferences.patch`. The patch re-points the inherited "No Search" prepopulated engine slot to Echothink Search and adds `default_search_provider` values to the T08 initial-preferences file: search URL `https://search.echothink.ai/search?q={searchTerms}` and suggest URL `https://search.echothink.ai/suggest?q={searchTerms}`. Search suggestions remain disabled by default over the inherited baseline and use the Echothink suggest route only when enabled. No omnibox internals, direct URL navigation, network stack, TLS, sandbox, renderer, downloads, history, bookmarks, password manager, cookies, or DevTools behavior changed. Task note: `docs/echothink-browser-alpha/t19-implement-default-search-provider.md`. |
 | T12 | W3 | Scaffold bundled Manifest V3 workspace extension | T02 | DONE | Created source-only extension scaffold at `extensions/echothink-workspace/` in the canonical browser root: MV3 `manifest.json`, background service worker, Side Panel HTML/CSS/JS, narrow content bridge, and extension-local asset. T02 is DONE; the canonical-root mismatch is carried forward and recorded in the task note. Manifest declares only `sidePanel`, `storage`, `tabs`, `activeTab`, and `scripting`; host permissions are limited to `app.echothink.ai`, `auth.echothink.ai`, `api.echothink.ai`, and `search.echothink.ai`. No backend/business logic, Chromium native patch, or `patches/series` change was made. Bundling is deferred to T13. Task note: `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`. |
+| T20 | W4 | Define login gate local state and allowlist | T10, T11 | BLOCKED | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. T10 is `DONE`, but T11 is missing from this progress file and no T11 task note exists. T20 is blocked until T11 is completed or `docs/progress.md` explicitly documents that T11 is an acceptable baseline dependency satisfied by T10's first-run shell work, with concrete source anchors and validation. No login-gate spec, allowlist, setup completion criteria, patch, backend logic, gateway logic, or browser behavior change was produced. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 
 ## T00 Notes
@@ -894,3 +895,51 @@ Known limitations:
 - Backend availability of `updates.echothink.ai` and
   `app.echothink.ai/download-browser` was not validated; these are packaging
   route contracts only.
+
+## T20 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T20 depends on T10 and T11.
+- T10 is marked `DONE` in this file.
+- T11 is not marked `DONE`, has no row in this file, and has no task note under
+  `docs/echothink-browser-alpha/`.
+- T20 is therefore `BLOCKED` until T11 is completed or this file explicitly
+  records T11 as an acceptable baseline dependency satisfied by T10's
+  first-run shell work.
+
+Blocked work:
+
+- No login-gate local state spec was authored.
+- No unauthenticated navigation allowlist was finalized.
+- No blocked-navigation behavior was defined.
+- No setup completion criteria were defined.
+- No diagnostics/support exceptions were finalized.
+- No patch, backend logic, gateway logic, network stack, TLS, sandbox,
+  renderer, downloads, history, bookmarks, password manager, cookies, or
+  DevTools behavior was changed.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "^\\| T10 \\|.*DONE|^\\| T20 \\|.*BLOCKED|^\\| T11 \\|" docs/progress.md` | Passed for T10 and T20; no T11 row was found. |
+| `rtk rg -n "^\\| T11 \\|" docs/progress.md` | Exited 1 as expected: no T11 progress row exists. |
+| `rtk rg -n "### T11: Add First-Run Shell|### T20: Define Login Gate State And Allowlist" docs/dag-doc.md` | Passed: the DAG defines T11 and T20, and T20 depends on T10 and T11. |
+| `rtk rg -n "echothink/0003-new-tab-and-first-run.patch" ../patches/series` | Passed: T10's patch is active in the inherited patch series. |
+| `rtk rg -n "Status: BLOCKED|T11 is not marked|No login-gate spec was authored|T21 must not consume" docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md` | Passed: the T20 task note records the blocker and prevents downstream implementation from treating it as a spec. |
+| `rtk git diff --check` | Passed: no whitespace errors. |
+
+Known limitations:
+
+- This is a blocker record, not the M4 login-gate spec.
+- T21 must not use the T20 task note as authorization to implement
+  `patches/echothink/0006-login-gate.patch`.
+- The `chrome://echothink-diagnostics` route is referenced by T10, but its
+  diagnostics WebUI ownership and readiness still need to be resolved before it
+  can be relied on as a final login-gate exception.
