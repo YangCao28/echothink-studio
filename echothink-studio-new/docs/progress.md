@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T18 merged, T27 blocked)
+Last updated: 2026-05-29 (T33 blocked)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -42,6 +42,7 @@ known limitations here.
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 | T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 | T32 | W5 | Add Windows build/signing/smoke docs | T30, T31 | DONE | Windows Alpha release runbook created at `docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`. Prerequisites T30 and T31 are DONE. Documents the Alpha Dev `mini_installer` build path, asset staging, `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe` package shape, signing workflow, sidecar update-channel metadata and reserved per-channel IDs, smoke procedure covering launch, branding, New Tab, Side Panel, search, restart, and uninstall, plus an Alpha candidate release checklist. Validation is docs/path based because this environment is not Windows and has no local Chromium source checkout. |
+| T33 | W11 | Run full patch validation | T05, T08, T10, T13, T19, T21, T23, T26, T31 | BLOCKED | Task note at `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`. T33 cannot run full inherited-plus-Echothink patch validation because required prerequisites T21, T23, and T26 are `BLOCKED`, with no explicit baseline exception for T33. Missing required artifacts are `patches/echothink/0006-login-gate.patch`, `patches/echothink/0007-device-identity.patch`, and `patches/echothink/0008-request-proof-helper.patch`; none are listed in `patches/series`. Current active `patches/series` is structurally valid for existing patches (`entries=122`, `inherited=108`, `echothink=14`, `missing_series_files=0`, `duplicates=0`, `echothink_tail_ok=True`), and `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` pass for the current incomplete series. Full application to pinned Chromium source was not run because it would validate an incomplete Alpha patch set. |
 
 ## T00 Notes
 
@@ -2256,3 +2257,71 @@ Known limitations:
 - App icon source paths must be verified during the first real Windows Chromium
   checkout/build. Shipping with Chromium taskbar or shortcut icons is an Alpha
   candidate blocker unless explicitly recorded as a known failed smoke item.
+
+## T33 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T33 depends on T05, T08, T10, T13, T19, T21, T23, T26, and T31.
+- T05, T08, T10, T13, T19, and T31 are marked `DONE`.
+- T21 is marked `BLOCKED`; T20 is still only `READY`, and the final M4
+  login-gate spec does not exist.
+- T23 is marked `BLOCKED`; T22 is `BLOCKED`, and the final M5 device identity
+  design does not exist.
+- T26 is marked `BLOCKED`; T25 is `BLOCKED`, no final proof helper spec exists,
+  and T24 has no progress row or task note.
+- No progress row or task note explicitly accepts incomplete T21, T23, or T26
+  as baseline dependencies for T33.
+
+Blocked delivery criteria:
+
+- Full patch application against pinned Chromium `148.0.7778.178` was not run
+  because the required Alpha patch set is incomplete.
+- T33 cannot confirm that all required Alpha patches apply cleanly until
+  `patches/echothink/0006-login-gate.patch`,
+  `patches/echothink/0007-device-identity.patch`, and
+  `patches/echothink/0008-request-proof-helper.patch` exist and are active.
+- No backend services, gateway logic, search ranking, chat orchestration,
+  workflow orchestration, business pages, network stack, TLS validation,
+  sandbox, renderer internals, downloads, history, bookmarks, password manager,
+  cookies, or DevTools behavior was changed.
+
+Current patch-series validation:
+
+- Active series entries: 122.
+- Inherited entries before the Echothink tail: 108.
+- Echothink entries: 14.
+- Last inherited entry:
+  `extra/ungoogled-chromium/add-flag-for-disabling-jit.patch`.
+- First Echothink entry: `echothink/0001-branding.patch`.
+- Missing active series files: 0.
+- Duplicate active series entries: 0.
+- Existing Echothink entries form a contiguous tail after inherited patches.
+- Required Alpha missing IDs:
+  `echothink/0006-login-gate.patch`,
+  `echothink/0007-device-identity.patch`,
+  `echothink/0008-request-proof-helper.patch`.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "\\| T(05|08|10|13|19|21|23|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T05, T08, T10, T13, T19, and T31 are `DONE`; T21, T23, and T26 are `BLOCKED`; no prior T33 row existed. |
+| `rtk sed -n '840,861p' echothink-studio-new/docs/dag-doc.md` | Passed: T33 requires T05, T08, T10, T13, T19, T21, T23, T26, and T31. |
+| `rtk ls -l patches/echothink/0006-login-gate.patch patches/echothink/0007-device-identity.patch patches/echothink/0008-request-proof-helper.patch` | Failed as expected: all three required blocked patch artifacts are missing. |
+| `rtk rg -n "echothink/0006-login-gate.patch|echothink/0007-device-identity.patch|echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing patches are not listed in the active pipeline. |
+| Series structure Python check | Passed for current active series: `entries=122`, `inherited=108`, `echothink=14`, `missing_series_files=0`, `duplicates=0`, `echothink_tail_ok=True`; reported required Alpha missing IDs `0006`, `0007`, and `0008`. |
+| `rtk python3 devutils/check_patch_files.py` | Passed, exit 0, for the current active incomplete series. |
+| `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `rtk python3 devutils/validate_config.py` | Passed, exit 0, for the current active incomplete series. |
+
+Known limitations:
+
+- This is a blocker record, not the final M7 patch validation report.
+- T34, T35, and T37 must remain blocked on T33 until T21, T23, and T26 are
+  complete and T33 is rerun.
