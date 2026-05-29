@@ -104,6 +104,5 @@ Commands were run from the inherited browser patch/config root, where
   checked against a local pinned-source copy.
 - `chrome://echothink-diagnostics` remains an allowlisted planned route until
   its owning diagnostics task implements the WebUI.
-- Full Alpha patch validation remains blocked by T23 and T26 until
-  `patches/echothink/0007-device-identity.patch` and
-  `patches/echothink/0008-request-proof-helper.patch` are implemented.
+- Full Alpha patch validation remains blocked by T26 until
+  `patches/echothink/0008-request-proof-helper.patch` is implemented.

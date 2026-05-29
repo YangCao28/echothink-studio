@@ -422,10 +422,15 @@ registered device public key, not from the header names.
 
 Enterprise mTLS can be added later as an optional hardening mode.
 
-T24 provides the bundled-extension-only signing bridge. T25/T26 still own the
-canonical request-proof payload, Echothink destination allowlist, replay
-protection ownership, and backend proof-validation contract before the
-extension attaches proofs to protected API calls.
+T24 provides the bundled-extension-only signing bridge. The Alpha proof helper
+spec is now
+`docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`.
+It defines the canonical payload fields (`method`, `url`, `timestamp`,
+optional `nonce`, and optional `access_token_hash`), the exact Echothink HTTPS
+destination allowlist, third-party rejection behavior, safe opaque proof result
+shape, and the rule that replay protection and proof validation remain
+backend/gateway responsibilities. T26 still owns the native helper patch, and
+T27 remains responsible for extension integration after T26 is complete.
 
 ### 5.8 Optional Echo Protocol
 

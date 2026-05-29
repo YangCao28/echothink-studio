@@ -550,6 +550,12 @@ not gain broad host permissions or general privileged bridge permissions.
 ### 5.10 Request Proof Helper
 
 Add browser-side support for signing request proofs used by protected APIs.
+The Alpha proof helper specification is maintained in
+`docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`.
+It is the source of truth for canonical payload fields, URL normalization,
+the Echothink destination signing allowlist, third-party rejection behavior,
+safe result shape, and the split between browser-side signing and
+backend-owned replay/proof validation.
 
 Implementation:
 
@@ -564,7 +570,8 @@ Implementation:
   access token hash, if required
   ```
 - Helper returns signed proof only for allowed Echothink domains.
-- Helper rejects signing for arbitrary third-party origins.
+- Helper rejects signing for arbitrary third-party origins and for
+  Echothink-owned origins that are not in the T25 signing allowlist.
 - Keep replay protection and proof validation out of the browser.
 
 Acceptance:

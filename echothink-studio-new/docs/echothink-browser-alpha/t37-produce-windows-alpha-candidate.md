@@ -30,7 +30,6 @@ blockers recorded by T33 through T36:
 
 | Missing task | Required artifact or decision | Exact file or decision needed |
 |---|---|---|
-| T25 | Final proof payload and allowlist spec | Complete `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md` with final payload fields, URL allowlist, signing boundary, replay controls, and failure behavior. |
 | T26 | Request proof signing helper patch | Create `patches/echothink/0008-request-proof-helper.patch` and add `echothink/0008-request-proof-helper.patch` to `patches/series` when active. |
 | T33 | Passing full patch validation | Rerun full patch validation against the complete ordered patch set and mark T33 `DONE`. |
 | T34 | Passing native regression report | Run native Chromium regression coverage against a validated browser build and mark T34 `DONE`. |

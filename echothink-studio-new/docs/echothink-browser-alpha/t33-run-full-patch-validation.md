@@ -13,17 +13,15 @@ not complete:
 
 | Prerequisite | Required artifact | Current status | Blocking evidence |
 |---|---|---|---|
-| T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` | BLOCKED | `docs/progress.md` marks T26 `BLOCKED`; T25 is `READY` but no final proof helper spec exists. |
+| T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` | READY | `docs/progress.md` marks T26 `READY`; T25 is `DONE`, but the proof-helper patch does not exist yet. |
 
 T23 and T24 are now `DONE`; their active patches are present in
 `patches/series`.
 
 ## Missing Prerequisite Work
 
-Complete T25 and T26 before resuming T33:
+Complete T26 before resuming T33:
 
-- Finalize `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`
-  as the M5 proof helper spec.
 - Create `patches/echothink/0008-request-proof-helper.patch`.
 - Add `echothink/0008-request-proof-helper.patch` to `patches/series` when
   active.
@@ -46,7 +44,7 @@ Commands were run from the canonical browser patch/config root.
 
 | Command | Result |
 |---|---|
-| `rtk rg -n "\\| T(05|08|10|13|19|21|23|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: all T33 prerequisites except T26 are `DONE`; T26 and T33 remain `BLOCKED`. |
+| `rtk rg -n "\\| T(05|08|10|13|19|21|23|25|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: all T33 prerequisites except T26 are `DONE`; T25 is `DONE`; T26 is `READY`; T33 remains `BLOCKED`. |
 | `rtk rg -n "^echothink/0007-device-identity\\.patch$|^echothink/0024-narrow-extension-bridge\\.patch$" patches/series` | Passed: T23 and T24 patches are active. |
 | `rtk rg -c "^echothink/" patches/series` | Passed: active Echothink patch count is `17`. |
 | `rtk ls -l patches/echothink/0008-request-proof-helper.patch` | Failed as expected: remaining proof-helper patch is absent. |

@@ -13,15 +13,14 @@ T33, is not complete.
 
 `docs/progress.md` marks T33 as `BLOCKED`, and
 `docs/echothink-browser-alpha/t33-run-full-patch-validation.md` explicitly says
-T34, T35, and T37 must remain blocked on T33 until T23 and T26 are complete.
+T34, T35, and T37 must remain blocked on T33 until T26 is complete.
 No progress entry or task note accepts incomplete T33 as an
 acceptable baseline dependency for T35.
 
-The missing prerequisite artifacts are:
+The missing prerequisite artifact is:
 
 | Missing task | Missing artifact | Why it blocks T35 behavior testing |
 |---|---|---|
-| T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` | T35 must verify device identity persistence, but the device identity patch does not exist. |
 | T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` | T35 must verify proof helper allowlist signing, but the proof helper patch does not exist. |
 
 Because the required Alpha patch set is incomplete and T33 did not validate the
@@ -39,8 +38,8 @@ browser candidate for the M7 behavior test pass.
 | Chat and Workspace Context modes | Not run | T15/T16/T17/T18 exist, but runtime behavior was not retested under a validated full Alpha build. |
 | Chat scope metadata | Not run | T16 source work exists, but runtime request metadata was not retested under a validated full Alpha build. |
 | Login gate and allowlist behavior | Not run | T21 now provides `0006-login-gate.patch`, but runtime behavior was not tested because T33 is blocked and no validated full Alpha build exists. |
-| Device identity persistence | BLOCKED | T23 is `READY`, but no `0007-device-identity.patch` exists. |
-| Proof helper signs only allowed Echothink URLs | BLOCKED | T26 is `BLOCKED`; no `0008-request-proof-helper.patch` exists. |
+| Device identity persistence | Not run | T23 provides `0007-device-identity.patch`, but runtime behavior was not tested because T33 is blocked and no validated full Alpha build exists. |
+| Proof helper signs only allowed Echothink URLs | BLOCKED | T26 is `READY`, but no `0008-request-proof-helper.patch` exists. |
 | Optional `echo://` routes | Not run | T28/T29 exist, but runtime behavior was not retested under a validated full Alpha build. |
 
 No deferred behavior is marked non-blocking in this T35 pass. Device identity
@@ -53,16 +52,9 @@ Complete and rerun T33 before resuming T35.
 
 T33 cannot complete until:
 
-- T23 creates `patches/echothink/0007-device-identity.patch` from the completed
-  T22 design and activates it
-  in `patches/series`.
-- T24 delivers the narrow extension bridge implementation artifact and any
-  required active patch or `patches/series` entry.
-- T25 is finalized as the M5 proof helper spec in
-  `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`.
 - T26 creates `patches/echothink/0008-request-proof-helper.patch` and activates
   it in `patches/series`.
-- `docs/progress.md` marks those prerequisite tasks and T33 as `DONE`, or
+- `docs/progress.md` marks T26 and T33 as `DONE`, or
   explicitly documents an acceptable baseline dependency for T35.
 
 Only after that can T35 run the behavior pass against a validated browser
@@ -80,8 +72,10 @@ Commands were run from the canonical browser patch/config root, where
 | `rtk rg -n "T34, T35, and T37 must remain blocked on T33|Status: BLOCKED" echothink-studio-new/docs/echothink-browser-alpha/t33-run-full-patch-validation.md` | Passed: the T33 task note blocks T35. |
 | `rtk ls -l patches/echothink/0006-login-gate.patch` | Passed: T21 login-gate patch exists. |
 | `rtk rg -n "echothink/0006-login-gate.patch" patches/series` | Passed: T21 login-gate patch is active in the patch pipeline. |
-| `rtk ls -l patches/echothink/0007-device-identity.patch patches/echothink/0008-request-proof-helper.patch` | Failed as expected: the required device identity and proof helper patches are missing. |
-| `rtk rg -n "echothink/0007-device-identity.patch|echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing patches are not listed in the active patch pipeline. |
+| `rtk ls -l patches/echothink/0007-device-identity.patch` | Passed: T23 device identity patch exists. |
+| `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Passed: T23 device identity patch is active in the patch pipeline. |
+| `rtk ls -l patches/echothink/0008-request-proof-helper.patch` | Failed as expected: the required proof helper patch is missing. |
+| `rtk rg -n "echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing proof helper patch is not listed in the active patch pipeline. |
 | `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md echothink-studio-new/docs/progress.md` | Passed: the T35 note and shared progress file exist. |
 | `rtk git diff --check` | Passed: no whitespace errors. |
 | `rtk rg -n "[[:blank:]]$" echothink-studio-new/docs/progress.md echothink-studio-new/docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md` | Exited 1 as expected: no trailing whitespace in the changed docs. |

@@ -25,13 +25,12 @@ manager, cookies, local storage, TLS, DevTools, or extension loading.
 
 ## Missing Prerequisite Work
 
-Complete and rerun T33 before resuming T34. T33 currently depends on these
-blocked implementation artifacts:
+Complete and rerun T33 before resuming T34. T33 currently depends on this
+remaining implementation artifact:
 
 | Prerequisite | Required artifact | Current status | Exact files or decisions needed |
 |---|---|---|---|
-| T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` | READY | T22 is `DONE`; create the `0007` patch from the completed design and add `echothink/0007-device-identity.patch` to `patches/series` when active. |
-| T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` | BLOCKED | Complete T24 bridge work, finalize `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md`, update `docs/progress.md`, create the `0008` patch, and add `echothink/0008-request-proof-helper.patch` to `patches/series` when active. |
+| T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` | READY | T25 is `DONE`; create the `0008` patch from the completed proof helper spec and add `echothink/0008-request-proof-helper.patch` to `patches/series` when active. |
 
 After those artifacts are active, T33 must rerun full patch validation against
 the pinned Chromium `148.0.7778.178` source and mark T33 `DONE` before T34 can
@@ -59,8 +58,8 @@ report.
 
 | Severity | Finding | Owning task or patch |
 |---|---|---|
-| BLOCKER | Native browser regression suite cannot start because full patch validation is incomplete. | T33, blocked by T23/T26. |
-| BLOCKER | Required M5 Alpha patches are missing from both `patches/echothink/` and `patches/series`. | T23 `0007-device-identity`, T26 `0008-request-proof-helper`. |
+| BLOCKER | Native browser regression suite cannot start because full patch validation is incomplete. | T33, blocked by T26. |
+| BLOCKER | Required proof-helper Alpha patch is missing from both `patches/echothink/` and `patches/series`. | T26 `0008-request-proof-helper`. |
 
 No native runtime behavior regression is asserted by this blocked pass. The
 failure is a prerequisite and validation-sequencing blocker.
@@ -84,9 +83,10 @@ Validation for this blocked pass is prerequisite and source-path based.
 | `rtk rg -n "^\\| T33 \\|.*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T33 is not marked `DONE`. |
 | `rtk rg -n "^\\| T33 \\|.*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T33 is marked `BLOCKED`. |
 | `rtk sed -n '860,878p' echothink-studio-new/docs/dag-doc.md` | Passed: T34 depends on T33 and requires the native browser regression report. |
-| `rtk ls patches/echothink` | Passed: existing Echothink patches are listed, `0006-login-gate.patch` is present, and `0007`/`0008` are absent. |
+| `rtk ls patches/echothink` | Passed: existing Echothink patches are listed, `0006-login-gate.patch` and `0007-device-identity.patch` are present, and `0008-request-proof-helper.patch` is absent. |
 | `rtk rg -n "echothink/0006-login-gate.patch" patches/series` | Passed: `0006-login-gate.patch` is active in the patch pipeline. |
-| `rtk rg -n "echothink/0007-device-identity.patch|echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing patches are not listed in the active pipeline. |
+| `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Passed: `0007-device-identity.patch` is active in the patch pipeline. |
+| `rtk rg -n "echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing proof-helper patch is not listed in the active pipeline. |
 
 ## Known Limitations
 
@@ -94,4 +94,4 @@ Validation for this blocked pass is prerequisite and source-path based.
 - No browser binary was launched and no tab/window/popup/history/downloads/
   bookmarks/password/cookie/local-storage/TLS/DevTools/extension runtime smoke
   was run.
-- T34 must remain blocked until T33 is completed after T23 and T26 are complete.
+- T34 must remain blocked until T33 is completed after T26 is complete.
