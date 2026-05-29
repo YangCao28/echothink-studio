@@ -323,10 +323,15 @@ Alpha implementation details are recorded in:
 
 - `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`
 - `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`
+- `docs/echothink-browser-alpha/t14-implement-side-panel-container.md`
 
 T13 bundles the extension as a Chromium component extension with fixed ID
 `lokdibgfmiemhdoogailbfpdggndpolk`, no `update_url`, and the same narrow
 permission set listed above.
+
+T14 keeps the Side Panel browser UI entry inside the bundled MV3 extension: the
+extension action configures Chromium's Side Panel action-click behavior and has
+an explicit `chrome.action.onClicked` fallback that opens `sidepanel.html`.
 
 Acceptance:
 

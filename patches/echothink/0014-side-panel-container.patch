@@ -1,0 +1,142 @@
+# Echothink-Patch: 0014-side-panel-container
+# Title: Open the Echothink Workspace Side Panel from the extension action
+# Area: extension
+# Depends-On: echothink/0004-bundled-workspace-extension.patch
+# Browser-Layer-Reason: The bundled workspace side panel needs a browser UI entry that works before service-rendered workspace content exists. Keeping the entry in the MV3 extension uses Chromium's Side Panel extension APIs and avoids a native toolbar rewrite.
+# Preferred-Surface-Checked: extension (chrome.sidePanel default options, action click behavior, and explicit action-click open fallback)
+# Security-Critical-Areas: none
+# Native-Files-Touched: chrome/browser/resources/echothink_workspace/background.js
+# Rebase-Risk: low (updates only the bundled extension service worker resource added by echothink/0004)
+# Validation: Apply inherited patches, then echothink/0001..0005 and later tail patches including this one with `patch -p1` against pinned Chromium 148.0.7778.178; launch a fresh profile, click the Echothink Workspace extension action, and verify the Side Panel opens to sidepanel.html.
+#
+# Notes:
+# - This patch keeps the Side Panel entry inside the bundled MV3 extension. It
+#   does not add privileged native bridges, broaden host permissions, or embed
+#   backend workflow logic.
+# - The extension action remains the browser UI entry point. The service worker
+#   configures openPanelOnActionClick on install/startup/service-worker load and
+#   also calls chrome.sidePanel.open() from the action click user gesture as a
+#   runtime fallback.
+
+--- a/chrome/browser/resources/echothink_workspace/background.js
++++ b/chrome/browser/resources/echothink_workspace/background.js
+@@ -1,37 +1,106 @@
+ const SIDE_PANEL_PATH = "sidepanel.html";
+ 
+-async function configureSidePanel(tabId) {
+-  if (!chrome.sidePanel?.setOptions || typeof tabId !== "number") {
++function logSidePanelError(action, error) {
++  console.warn(`Unable to ${action}`, error);
++}
++
++async function enableActionClickOpening() {
++  if (!chrome.sidePanel?.setPanelBehavior) {
++    return;
++  }
++
++  await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
++}
++
++async function configureDefaultSidePanel() {
++  if (!chrome.sidePanel?.setOptions) {
+     return;
+   }
+ 
+   await chrome.sidePanel.setOptions({
+-    tabId,
+     path: SIDE_PANEL_PATH,
+     enabled: true,
+   });
+ }
+ 
+-chrome.runtime.onInstalled.addListener(() => {
+-  chrome.sidePanel
+-    ?.setPanelBehavior?.({ openPanelOnActionClick: true })
+-    ?.catch((error) => {
+-      console.warn("Unable to set side panel action behavior", error);
+-    });
++async function configureTabSidePanel(tabId) {
++  if (!chrome.sidePanel?.setOptions || !Number.isInteger(tabId)) {
++    return;
++  }
++
++  await chrome.sidePanel.setOptions({
++    tabId,
++    path: SIDE_PANEL_PATH,
++    enabled: true,
++  });
++}
++
++async function configureActiveTabSidePanel() {
++  if (!chrome.tabs?.query) {
++    return undefined;
++  }
++
++  const [tab] = await chrome.tabs.query({
++    active: true,
++    currentWindow: true,
++  });
++
++  await configureTabSidePanel(tab?.id);
++  return tab;
++}
++
++async function initializeSidePanelEntry() {
++  await configureDefaultSidePanel();
++  await enableActionClickOpening();
++  await configureActiveTabSidePanel();
++}
++
++function scheduleSidePanelInitialization() {
++  initializeSidePanelEntry().catch((error) => {
++    logSidePanelError("initialize side panel entry", error);
++  });
++}
++
++async function openSidePanelFromAction(tab) {
++  await configureDefaultSidePanel();
++  await configureTabSidePanel(tab?.id);
++
++  if (!chrome.sidePanel?.open || !Number.isInteger(tab?.windowId)) {
++    return;
++  }
++
++  await chrome.sidePanel.open({ windowId: tab.windowId });
++}
++
++scheduleSidePanelInitialization();
++
++chrome.runtime.onInstalled.addListener(scheduleSidePanelInitialization);
++chrome.runtime.onStartup?.addListener(scheduleSidePanelInitialization);
++
++chrome.action?.onClicked?.addListener((tab) => {
++  openSidePanelFromAction(tab).catch((error) => {
++    logSidePanelError("open side panel from toolbar action", error);
++  });
++});
++
++chrome.tabs.onCreated.addListener((tab) => {
++  configureTabSidePanel(tab.id).catch((error) => {
++    logSidePanelError("configure side panel for new tab", error);
++  });
+ });
+ 
+ chrome.tabs.onActivated.addListener(({ tabId }) => {
+-  configureSidePanel(tabId).catch((error) => {
+-    console.warn("Unable to configure side panel for active tab", error);
++  configureTabSidePanel(tabId).catch((error) => {
++    logSidePanelError("configure side panel for active tab", error);
+   });
+ });
+ 
+ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+   if (changeInfo.status !== "loading") {
+     return;
+   }
+ 
+-  configureSidePanel(tabId).catch((error) => {
+-    console.warn("Unable to configure side panel for updated tab", error);
++  configureTabSidePanel(tabId).catch((error) => {
++    logSidePanelError("configure side panel for updated tab", error);
+   });
+ });
