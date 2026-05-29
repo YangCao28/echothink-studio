@@ -26,6 +26,7 @@ known limitations here.
 | T13 | W4 | Add bundled extension install patch | T12 | DONE | Created `patches/echothink/0004-bundled-workspace-extension.patch` and inserted it into `patches/series` between `echothink/0003-new-tab-and-first-run.patch` and `echothink/0005-default-search-provider.patch`. T12 is DONE. The patch bundles the workspace shell as a Chromium component extension, allowlists only fixed extension ID `lokdibgfmiemhdoogailbfpdggndpolk`, registers it in `ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages()`, and adds resources under `chrome/browser/resources/echothink_workspace/`. Source manifest now carries the same public key, no `update_url`, exact permissions `sidePanel`, `storage`, `tabs`, `activeTab`, `scripting`, and only Echothink-owned host permissions. No extension permission model weakening or Web Store replacement path was added. Task note: `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`. |
 | T11 | W4 | Add first-run shell | T10 | DONE | Created `patches/echothink/0011-first-run-gate-shell.patch` and appended `echothink/0011-first-run-gate-shell.patch` to the Echothink series tail (after `echothink/0005`). Establishes the M2 first-run **gate shell** by reusing T10's `chrome://echothink-first-run` page (no new page) and making a single narrow first-run-only edit to the `AddFirstRunTabs` block in `chrome/browser/chrome_browser_main.cc` so that on first launch the browser opens **only** the gate shell — suppressing the inherited `chrome://ungoogled-first-run` how-to tab and the normal-profile workspace / New Tab tabs (`master_prefs_->new_tabs`) before setup. The shell's primary CTAs are Sign in (`auth.echothink.ai/login`) and Enroll device (`auth.echothink.ai/device/enroll`), so first launch leads to login/enrollment. No navigation interception, auth-readiness flags, or post-setup restoration — those are owned by T20 (spec) and T21 (`echothink/0006-login-gate.patch`). No policy/pref change; no business logic; no network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools change; non-first-run startup untouched. Patch number `0011` chosen to avoid the change plan's reserved band (0004/0006–0010). Validated: `git apply --numstat` (12/3), `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0; real `patch -p1` applied cleanly against a reconstructed post-`0003` block. Task note: `docs/echothink-browser-alpha/t11-add-first-run-shell.md`. |
 | T20 | W4 | Define login gate local state and allowlist | T10, T11 | READY | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. Both prerequisites are now `DONE` (T10; and T11, merged in this change — see the T11 row above and task note `t11-add-first-run-shell.md`). The earlier `BLOCKED` state (recorded when T11 was missing) is therefore resolved and T20 may proceed. Still pending: the M4 login-gate spec itself (local auth/device readiness flags, unauthenticated navigation allowlist, blocked-navigation behavior, setup-completion criteria, diagnostics/support exceptions). T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. |
+| T21 | W5 | Implement login-required startup gate | T20 | BLOCKED | T21 cannot start because prerequisite T20 is not marked `DONE` and no final login-gate spec exists. `docs/progress.md` marks T20 `READY`, says the M4 spec is still pending, and explicitly says T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. The current T20 note is also still a blocker note and states no login-gate spec was authored. No Chromium patch was created, `patches/series` was not changed, and protected browser areas remain untouched. Task note: `docs/echothink-browser-alpha/t21-implement-login-required-startup-gate.md`. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
 | T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 
@@ -1181,3 +1182,61 @@ Known limitations:
   Features, UAC/file-description, uninstall, and icon smoke tests remain T32/T36.
 - Full side-by-side Canary/Beta/Stable/Enterprise Stable install modes still
   need final app/update IDs and packaging docs from T32.
+
+## T21 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t21-implement-login-required-startup-gate.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T21 depends on T20.
+- T20 is not marked `DONE` in this shared progress file. Its row is `READY` and
+  says the M4 login-gate spec is still pending.
+- The current T20 task note remains a blocker note and explicitly says no
+  login-gate spec was authored and that T21 must not consume it as authorization
+  to implement `patches/echothink/0006-login-gate.patch`.
+
+Blocked result:
+
+- T21 is marked `BLOCKED`.
+- No `patches/echothink/0006-login-gate.patch` file was created.
+- `patches/series` was not changed.
+- No navigation throttles, WebUI pages, readiness flags, setup-completion
+  signals, backend services, gateway logic, search ranking, chat orchestration,
+  workflow orchestration, business pages, network stack, TLS validation,
+  sandbox, renderer internals, downloads, history, bookmarks, password manager,
+  cookies, or DevTools behavior were changed.
+
+Missing prerequisite decisions:
+
+- Local auth and device readiness flags: storage surface, names, defaults,
+  profile/local-state behavior, and reset behavior.
+- Exact unauthenticated navigation allowlist: schemes, origins, and paths for
+  login, enrollment, diagnostics, update, support, and download routes.
+- Blocked-navigation behavior: local explanation page URL, redirect timing, and
+  navigation types in scope.
+- Setup completion criteria and browser-side signal that restores normal
+  Chromium browsing.
+- Exceptions for `chrome://` pages, diagnostics, support, update, app mode,
+  incognito, guest, and enterprise-managed startup surfaces.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "\\| T20 \\|.*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Failed as expected: T20 is not marked `DONE`. |
+| `rtk rg -n "\\| T20 \\|.*READY|T21 must not implement|Still pending" echothink-studio-new/docs/progress.md` | Passed: progress records T20 as `READY`, records the pending spec, and blocks T21 from implementing `0006`. |
+| `rtk rg -n "No login-gate spec was authored|T21 must not consume|0006-login-gate" echothink-studio-new/docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md` | Passed: the T20 note is not the final implementation spec. |
+| `rtk ls -l patches/echothink/0006-login-gate.patch` | Failed as expected: no blocked patch artifact exists. |
+| `rtk rg -n "echothink/0006-login-gate.patch" patches/series` | Failed as expected: inactive blocked patch is not listed in the active patch pipeline. |
+| `rtk git diff --check -- echothink-studio-new/docs/progress.md echothink-studio-new/docs/echothink-browser-alpha/t21-implement-login-required-startup-gate.md` | Passed, exit 0. |
+
+Known limitations:
+
+- T21 delivery criteria remain unmet until T20 is completed and the login gate
+  patch can be implemented and validated.
+- No runtime browser smoke test was run because no implementation patch exists
+  in this blocked pass.
