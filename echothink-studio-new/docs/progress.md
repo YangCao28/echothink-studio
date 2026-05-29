@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T33 blocked)
+Last updated: 2026-05-29 (T34 blocked)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -43,6 +43,7 @@ known limitations here.
 | T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 | T32 | W5 | Add Windows build/signing/smoke docs | T30, T31 | DONE | Windows Alpha release runbook created at `docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md`. Prerequisites T30 and T31 are DONE. Documents the Alpha Dev `mini_installer` build path, asset staging, `EchothinkBrowserSetup-Dev-x64-148.0.7778.178-alpha.<build>.exe` package shape, signing workflow, sidecar update-channel metadata and reserved per-channel IDs, smoke procedure covering launch, branding, New Tab, Side Panel, search, restart, and uninstall, plus an Alpha candidate release checklist. Validation is docs/path based because this environment is not Windows and has no local Chromium source checkout. |
 | T33 | W11 | Run full patch validation | T05, T08, T10, T13, T19, T21, T23, T26, T31 | BLOCKED | Task note at `docs/echothink-browser-alpha/t33-run-full-patch-validation.md`. T33 cannot run full inherited-plus-Echothink patch validation because required prerequisites T21, T23, and T26 are `BLOCKED`, with no explicit baseline exception for T33. Missing required artifacts are `patches/echothink/0006-login-gate.patch`, `patches/echothink/0007-device-identity.patch`, and `patches/echothink/0008-request-proof-helper.patch`; none are listed in `patches/series`. Current active `patches/series` is structurally valid for existing patches (`entries=122`, `inherited=108`, `echothink=14`, `missing_series_files=0`, `duplicates=0`, `echothink_tail_ok=True`), and `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` pass for the current incomplete series. Full application to pinned Chromium source was not run because it would validate an incomplete Alpha patch set. |
+| T34 | W12 | Run native browser regression suite | T33 | BLOCKED | Task note at `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`. T34 cannot run the native browser regression suite because direct prerequisite T33 is `BLOCKED`, with no explicit baseline exception for T34. Missing prerequisite artifacts remain `patches/echothink/0006-login-gate.patch`, `patches/echothink/0007-device-identity.patch`, and `patches/echothink/0008-request-proof-helper.patch`; none are active in `patches/series`. No runtime validation was run for tabs, windows, popups, history, downloads, bookmarks, password manager, cookies, local storage, TLS, DevTools, or extension loading. T34 made no browser patch/source/extension/asset/packaging changes and did not replace Chromium primitives; runtime Chromium-native ownership remains unconfirmed until T33 completes and a runnable validated browser build exists. |
 
 ## T00 Notes
 
@@ -2325,3 +2326,58 @@ Known limitations:
 - This is a blocker record, not the final M7 patch validation report.
 - T34, T35, and T37 must remain blocked on T33 until T21, T23, and T26 are
   complete and T33 is rerun.
+
+## T34 Notes
+
+Changed documentation:
+
+- `docs/echothink-browser-alpha/t34-run-native-browser-regression-suite.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T34 depends on T33.
+- T33 is marked `BLOCKED`, not `DONE`.
+- No progress row or task note explicitly accepts blocked T33 as an acceptable
+  baseline dependency for T34.
+- T33 is blocked by T21, T23, and T26. The missing active artifacts are
+  `patches/echothink/0006-login-gate.patch`,
+  `patches/echothink/0007-device-identity.patch`, and
+  `patches/echothink/0008-request-proof-helper.patch`.
+
+Blocked delivery criteria:
+
+- The native browser regression suite was not run.
+- No browser binary was launched.
+- Runtime behavior was not validated for native tabs, windows, popups, history,
+  downloads, bookmarks, password manager, cookies, local storage, TLS, DevTools,
+  or extension loading.
+- T34 cannot confirm that no blocker native regressions remain until T33
+  completes and a runnable, fully validated browser build exists.
+
+Chromium-native ownership:
+
+- T34 made no browser patch, source, extension, asset, or packaging changes.
+- T34 did not replace Chromium primitives or touch network stack, TLS
+  validation, sandbox, renderer internals, downloads, history, bookmarks,
+  password manager, cookies, local storage, or DevTools.
+- Runtime Chromium-native ownership remains unconfirmed because the regression
+  suite could not start while T33 is blocked.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk rg -n "^\\| T33 \\|.*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T33 is not marked `DONE`. |
+| `rtk rg -n "^\\| T33 \\|.*\\| BLOCKED \\|" echothink-studio-new/docs/progress.md` | Passed: T33 is marked `BLOCKED`. |
+| `rtk sed -n '860,878p' echothink-studio-new/docs/dag-doc.md` | Passed: T34 depends on T33 and requires the native browser regression report. |
+| `rtk ls patches/echothink` | Passed: existing Echothink patches are listed, and `0006`, `0007`, and `0008` are absent. |
+| `rtk rg -n "echothink/0006-login-gate.patch|echothink/0007-device-identity.patch|echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing patches are not listed in the active pipeline. |
+| `rtk git diff --check` | Passed: no whitespace errors. |
+
+Known limitations:
+
+- This is a blocker regression report, not the final passing M7 native
+  regression report.
+- T34 must remain blocked until T33 is completed after T21, T23, and T26 are
+  complete.
