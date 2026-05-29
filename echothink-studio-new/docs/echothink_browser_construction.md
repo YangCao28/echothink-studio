@@ -247,6 +247,10 @@ The Side Panel container entry is documented in
 `docs/echothink-browser-alpha/t14-implement-side-panel-container.md`; it keeps
 the browser UI entry in the bundled extension action and opens the local
 extension shell `sidepanel.html`.
+The Side Panel mode selector is documented in
+`docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`; it
+uses local extension storage to persist exactly `chat` or
+`workspace_context` per profile.
 
 The Side Panel should provide two switchable modes. The mode selector should be
 visible at the top of the panel and preserve the user's last selected mode per

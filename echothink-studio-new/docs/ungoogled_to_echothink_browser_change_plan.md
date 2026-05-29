@@ -324,6 +324,7 @@ Alpha implementation details are recorded in:
 - `docs/echothink-browser-alpha/t12-scaffold-bundled-workspace-extension.md`
 - `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`
 - `docs/echothink-browser-alpha/t14-implement-side-panel-container.md`
+- `docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`
 
 T13 bundles the extension as a Chromium component extension with fixed ID
 `lokdibgfmiemhdoogailbfpdggndpolk`, no `update_url`, and the same narrow
@@ -332,6 +333,11 @@ permission set listed above.
 T14 keeps the Side Panel browser UI entry inside the bundled MV3 extension: the
 extension action configures Chromium's Side Panel action-click behavior and has
 an explicit `chrome.action.onClicked` fallback that opens `sidepanel.html`.
+
+T15 implements the local Side Panel mode selector in that bundled extension
+shell. It supports only `chat` and `workspace_context`, stores the selected
+mode in profile-local `chrome.storage.local` under
+`echothink.sidePanel.mode`, and switches modes without browser restart.
 
 Acceptance:
 
@@ -349,6 +355,9 @@ Mode selector:
 - Always visible at the top of the panel.
 - Stores last selected mode in profile-local extension storage.
 - Does not require a browser restart.
+
+Alpha implementation details are recorded in
+`docs/echothink-browser-alpha/t15-implement-side-panel-mode-selector.md`.
 
 Mode 1: Chat Panel
 

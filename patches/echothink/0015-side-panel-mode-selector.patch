@@ -1,0 +1,179 @@
+# Echothink-Patch: 0015-side-panel-mode-selector
+# Title: Persist the Echothink Side Panel mode selector
+# Area: extension
+# Depends-On: echothink/0004-bundled-workspace-extension.patch, echothink/0014-side-panel-container.patch
+# Browser-Layer-Reason: The bundled workspace side panel needs a local profile-scoped mode selector before service-rendered Chat or Workspace Context content exists. Keeping the selector in the MV3 extension uses extension storage and avoids native Chromium state plumbing.
+# Preferred-Surface-Checked: extension (local sidepanel.html/sidepanel.js UI and chrome.storage.local)
+# Security-Critical-Areas: none
+# Native-Files-Touched: chrome/browser/resources/echothink_workspace/sidepanel.html, chrome/browser/resources/echothink_workspace/sidepanel.css, chrome/browser/resources/echothink_workspace/sidepanel.js
+# Rebase-Risk: low (updates only bundled extension resource files added by echothink/0004)
+# Validation: Apply inherited patches, then echothink/0001..0005 and later tail patches including echothink/0014 and this patch with `patch -p1` against pinned Chromium 148.0.7778.178; launch a fresh profile, switch between Chat and Workspace Context in the Side Panel, restart, and verify the selected mode persists in that profile.
+#
+# Notes:
+# - This patch supports exactly the Alpha modes `chat` and
+#   `workspace_context`; unsupported stored values fall back to `chat`.
+# - Mode state is stored only in chrome.storage.local, making it local to the
+#   extension install/profile. The patch does not use sync storage, remote
+#   account state, backend services, privileged bridges, or broader extension
+#   permissions.
+
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.css
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.css
+@@ -72,12 +72,14 @@ textarea {
+ 
+ .mode-tab {
+   min-height: 34px;
++  padding: 0 8px;
+   border: 0;
+   border-radius: 6px;
+   background: transparent;
+   color: #4a5963;
+   cursor: pointer;
+   font-weight: 650;
++  line-height: 1.2;
+ }
+ 
+ .mode-tab:focus-visible {
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.html
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.html
+@@ -16,16 +16,30 @@
+         </div>
+       </header>
+ 
+-      <nav class="mode-tabs" aria-label="Workspace mode">
+-        <button class="mode-tab is-active" type="button" data-mode="chat" aria-selected="true">
++      <nav class="mode-tabs" aria-label="Workspace mode" role="tablist">
++        <button
++          class="mode-tab is-active"
++          type="button"
++          data-mode="chat"
++          role="tab"
++          aria-controls="chat-panel"
++          aria-selected="true"
++        >
+           Chat
+         </button>
+-        <button class="mode-tab" type="button" data-mode="workspace" aria-selected="false">
+-          Workspace
++        <button
++          class="mode-tab"
++          type="button"
++          data-mode="workspace_context"
++          role="tab"
++          aria-controls="workspace-context-panel"
++          aria-selected="false"
++        >
++          Workspace Context
+         </button>
+       </nav>
+ 
+-      <section class="panel-region" id="chat-panel" data-panel="chat">
++      <section class="panel-region" id="chat-panel" data-panel="chat" role="tabpanel">
+         <label class="field-label" for="scope-select">Scope</label>
+         <select id="scope-select" name="scope">
+           <option value="current_page">Current page</option>
+@@ -48,7 +62,12 @@
+         </form>
+       </section>
+ 
+-      <section class="panel-region is-hidden" id="workspace-panel" data-panel="workspace">
++      <section
++        class="panel-region is-hidden"
++        id="workspace-context-panel"
++        data-panel="workspace_context"
++        role="tabpanel"
++      >
+         <ul class="context-list">
+           <li>
+             <span>Project</span>
+--- a/chrome/browser/resources/echothink_workspace/sidepanel.js
++++ b/chrome/browser/resources/echothink_workspace/sidepanel.js
+@@ -1,19 +1,62 @@
++const SIDE_PANEL_MODE_STORAGE_KEY = "echothink.sidePanel.mode";
++const ALPHA_MODES = Object.freeze(["chat", "workspace_context"]);
++const DEFAULT_MODE = "chat";
++
+ const modeButtons = document.querySelectorAll("[data-mode]");
+ const panels = document.querySelectorAll("[data-panel]");
+ const activeTabLabel = document.querySelector("#active-tab-label");
++let hasUserSelectedMode = false;
+ 
++function isSupportedMode(mode) {
++  return ALPHA_MODES.includes(mode);
++}
++
+ function setMode(mode) {
++  const nextMode = isSupportedMode(mode) ? mode : DEFAULT_MODE;
++
+   modeButtons.forEach((button) => {
+-    const isActive = button.dataset.mode === mode;
++    const isActive = button.dataset.mode === nextMode;
+     button.classList.toggle("is-active", isActive);
+     button.setAttribute("aria-selected", String(isActive));
+   });
+ 
+   panels.forEach((panel) => {
+-    panel.classList.toggle("is-hidden", panel.dataset.panel !== mode);
++    panel.classList.toggle("is-hidden", panel.dataset.panel !== nextMode);
++  });
++
++  return nextMode;
++}
++
++async function readStoredMode() {
++  if (!globalThis.chrome?.storage?.local?.get) {
++    return DEFAULT_MODE;
++  }
++
++  const storedValues = await globalThis.chrome.storage.local.get(
++    SIDE_PANEL_MODE_STORAGE_KEY,
++  );
++  return isSupportedMode(storedValues?.[SIDE_PANEL_MODE_STORAGE_KEY])
++    ? storedValues[SIDE_PANEL_MODE_STORAGE_KEY]
++    : DEFAULT_MODE;
++}
++
++async function persistMode(mode) {
++  if (!globalThis.chrome?.storage?.local?.set) {
++    return;
++  }
++
++  await globalThis.chrome.storage.local.set({
++    [SIDE_PANEL_MODE_STORAGE_KEY]: mode,
+   });
+ }
+ 
++async function initializeMode() {
++  const storedMode = await readStoredMode();
++  if (!hasUserSelectedMode) {
++    setMode(storedMode);
++  }
++}
++
+ async function updateActiveTabLabel() {
+   if (!globalThis.chrome?.tabs?.query || !activeTabLabel) {
+     return;
+@@ -36,7 +79,13 @@ async function updateActiveTabLabel() {
+ }
+ 
+ modeButtons.forEach((button) => {
+-  button.addEventListener("click", () => setMode(button.dataset.mode));
++  button.addEventListener("click", () => {
++    hasUserSelectedMode = true;
++    const nextMode = setMode(button.dataset.mode);
++    persistMode(nextMode).catch((error) => {
++      console.warn("Unable to store side panel mode", error);
++    });
++  });
+ });
+ 
+ document.querySelector(".composer")?.addEventListener("submit", (event) => {
+@@ -46,3 +90,8 @@ document.querySelector(".composer")?.addEventListener("submit", (event) => {
+ updateActiveTabLabel().catch((error) => {
+   console.warn("Unable to read active tab", error);
+ });
++
++initializeMode().catch((error) => {
++  console.warn("Unable to read side panel mode", error);
++  setMode(DEFAULT_MODE);
++});
