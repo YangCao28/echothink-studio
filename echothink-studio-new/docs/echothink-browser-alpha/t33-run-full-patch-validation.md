@@ -8,19 +8,18 @@ Status: BLOCKED
 
 ## Blocker
 
-T33 cannot run full patch validation yet because three required prerequisite
+T33 cannot run full patch validation yet because two required prerequisite
 implementation tasks are not complete:
 
 | Prerequisite | Required artifact | Current status | Blocking evidence |
 |---|---|---|---|
-| T21 - Implement login-required startup gate | `patches/echothink/0006-login-gate.patch` | BLOCKED | `docs/progress.md` marks T21 `BLOCKED`; T20 is only `READY` and no final login-gate spec exists. |
-| T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` | BLOCKED | `docs/progress.md` marks T23 `BLOCKED`; T22 is `BLOCKED` and no final device identity design exists. |
+| T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` | BLOCKED | `docs/progress.md` marks T23 `BLOCKED`; T22 is `READY` but no final device identity design exists. |
 | T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` | BLOCKED | `docs/progress.md` marks T26 `BLOCKED`; T25 is `BLOCKED` and no final proof helper spec exists. |
 
 The coordination rules require prerequisites to be marked `DONE` or explicitly
 documented as acceptable baseline dependencies. No T33 source note, prerequisite
-task note, or `docs/progress.md` entry accepts incomplete T21, T23, or T26 as a
-baseline dependency for full M7 patch validation.
+task note, or `docs/progress.md` entry accepts incomplete T23 or T26 as a
+baseline dependency for full M7 patch validation. T21 is now `DONE`.
 
 Because the required Alpha patch set is incomplete, running a full inherited
 plus Echothink patch-application pass would validate the wrong ordered series.
@@ -28,14 +27,6 @@ This pass therefore records the blocker and validates only the current series
 shape and local config utilities.
 
 ## Missing Prerequisite Work
-
-Complete T21 before resuming T33:
-
-- Finalize `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`
-  as the M4 login-gate spec.
-- Update `docs/progress.md` so T20 and then T21 can become `DONE`.
-- Create `patches/echothink/0006-login-gate.patch`.
-- Add `echothink/0006-login-gate.patch` to `patches/series` when active.
 
 Complete T23 before resuming T33:
 
@@ -63,18 +54,18 @@ currently exist:
 
 | Check | Result |
 |---|---|
-| Active series entries | 122 |
+| Active series entries | 123 |
 | Inherited entries before Echothink tail | 108 |
-| Echothink entries | 14 |
+| Echothink entries | 15 |
 | Last inherited entry | `extra/ungoogled-chromium/add-flag-for-disabling-jit.patch` |
 | First Echothink entry | `echothink/0001-branding.patch` |
 | Missing active series files | 0 |
 | Duplicate active series entries | 0 |
 | Echothink entries form the tail block | Yes |
 
-The current active series does not include the required M4/M5 Alpha patch IDs:
+The current active series does not include the remaining required M5 Alpha patch
+IDs:
 
-- `echothink/0006-login-gate.patch`
 - `echothink/0007-device-identity.patch`
 - `echothink/0008-request-proof-helper.patch`
 
@@ -87,11 +78,13 @@ Commands were run from the canonical browser patch/config root, where
 
 | Command | Result |
 |---|---|
-| `rtk rg -n "\\| T(05|08|10|13|19|21|23|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T05, T08, T10, T13, T19, and T31 are `DONE`; T21, T23, and T26 are `BLOCKED`; no prior T33 row existed. |
+| `rtk rg -n "\\| T(05|08|10|13|19|21|23|26|31|33) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T05, T08, T10, T13, T19, T21, and T31 are `DONE`; T23 and T26 are `BLOCKED`; T33 remains `BLOCKED`. |
 | `rtk sed -n '840,861p' echothink-studio-new/docs/dag-doc.md` | Passed: T33 requires T05, T08, T10, T13, T19, T21, T23, T26, and T31 before full validation. |
-| `rtk ls -l patches/echothink/0006-login-gate.patch patches/echothink/0007-device-identity.patch patches/echothink/0008-request-proof-helper.patch` | Failed as expected: all three required blocked patch artifacts are missing. |
-| `rtk rg -n "echothink/0006-login-gate.patch|echothink/0007-device-identity.patch|echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing patches are not listed in the active pipeline. |
-| Series structure Python check | Passed for current active series: `entries=122`, `inherited=108`, `echothink=14`, `missing_series_files=0`, `duplicates=0`, `echothink_tail_ok=True`; reported required Alpha missing IDs `0006`, `0007`, and `0008`. |
+| `rtk ls -l patches/echothink/0006-login-gate.patch` | Passed: T21 login-gate patch exists. |
+| `rtk rg -n "echothink/0006-login-gate.patch" patches/series` | Passed: T21 login-gate patch is active in the patch pipeline. |
+| `rtk ls -l patches/echothink/0007-device-identity.patch patches/echothink/0008-request-proof-helper.patch` | Failed as expected: the remaining required blocked patch artifacts are missing. |
+| `rtk rg -n "echothink/0007-device-identity.patch|echothink/0008-request-proof-helper.patch" patches/series` | Exited 1 as expected: inactive missing patches are not listed in the active pipeline. |
+| Series structure Python check | Passed for current active series: `entries=123`, `inherited=108`, `echothink=15`, `missing_series_files=0`, `duplicates=0`, `echothink_tail_ok=True`; reported required Alpha missing IDs `0007` and `0008`. |
 | `rtk python3 devutils/check_patch_files.py` | Passed, exit 0, for the current active incomplete series. |
 | `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
 | `rtk python3 devutils/validate_config.py` | Passed, exit 0, for the current active incomplete series. |
@@ -104,7 +97,6 @@ would not satisfy T33 delivery criteria.
 
 - This is a blocker report, not the final M7 patch validation report.
 - It does not prove that all required Alpha patches apply cleanly, because
-  `0006-login-gate`, `0007-device-identity`, and `0008-request-proof-helper`
-  do not exist yet.
+  `0007-device-identity` and `0008-request-proof-helper` do not exist yet.
 - T34, T35, and T37 must remain blocked on T33 until this task is rerun after
-  T21, T23, and T26 are complete.
+  T23 and T26 are complete.

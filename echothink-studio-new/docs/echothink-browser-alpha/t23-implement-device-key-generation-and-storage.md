@@ -7,17 +7,18 @@ Status: BLOCKED
 
 ## Blocker
 
-T23 depends on T22. T22 is not complete in the shared progress source and does
-not provide the device identity design that this implementation patch is
-required to consume.
+T23 depends on T22. T22 is now unblocked by T20 and marked `READY`, but it is
+not marked `DONE` and does not yet provide the final M5 device identity design
+that T23 is required to consume.
 
 Evidence:
 
-- `docs/progress.md` marks T22 as `BLOCKED`, not `DONE`.
+- `docs/progress.md` marks T22 as `READY`, not `DONE`.
 - `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`
-  is a blocker note, not the final M5 device identity design.
-- The T22 note explicitly says T23 must not use it as authorization to
-  implement `patches/echothink/0007-device-identity.patch`.
+  records that no final device identity and DPAPI storage design has been
+  authored yet.
+- No task note or progress entry accepts incomplete T22 as a baseline dependency
+  for implementing `patches/echothink/0007-device-identity.patch`.
 
 Because the coordination rules require prerequisites to be marked `DONE` or
 explicitly documented as acceptable baseline dependencies, T23 cannot create or
@@ -27,7 +28,7 @@ activate the device identity patch yet.
 
 | Prerequisite | Required by | Status | Evidence |
 |---|---|---|---|
-| T22 - Define device identity and DPAPI storage | T23 | BLOCKED | `docs/progress.md` marks T22 `BLOCKED`; the T22 task note says no device identity fields, DPAPI storage format, metadata placement, reset/logout behavior, or private-key bridge boundary were defined. |
+| T22 - Define device identity and DPAPI storage | T23 | READY, not DONE | `docs/progress.md` marks T22 `READY`; the T22 task note says the final device identity fields, DPAPI storage format, metadata placement, reset/logout behavior, and private-key bridge boundary still need to be defined. |
 
 No progress entry or task note explicitly accepts incomplete T22 as a baseline
 dependency for T23.
@@ -39,20 +40,7 @@ Complete T22 before resuming T23. The exact files that need to be updated are:
 - `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`
 - `docs/progress.md`
 
-T22 itself is blocked on T20. The upstream prerequisite files and decisions are:
-
-- `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`
-- `docs/progress.md`
-- Local auth/device readiness flags and their storage surface.
-- Final unauthenticated navigation allowlist.
-- Blocked-navigation behavior and local recovery surface.
-- Setup-completion criteria after login and device verification.
-- Diagnostics/support exceptions, including the status of
-  `chrome://echothink-diagnostics`.
-- Reset/logout semantics for non-secret enrollment state.
-
-After T20 is complete, T22 must define the exact implementation contract T23
-needs:
+T22 must define the exact implementation contract T23 needs:
 
 - Local device identity field names and meanings.
 - Windows DPAPI private-key storage format and scope.
@@ -61,6 +49,9 @@ needs:
 - Explicit reset behavior for local enrollment state.
 - Native bridge boundary that keeps private key material out of extension
   JavaScript, logs, docs examples, and progress notes.
+
+T20 is no longer a prerequisite blocker for T22/T23; it is now the completed
+readiness/reset baseline that T22 must consume.
 
 ## T23 Work Not Started
 
@@ -86,11 +77,11 @@ did not:
 - `docs/echothink_browser_construction.md` sections 5.6 and 5.7, which define
   the high-level device identity and request-proof architecture.
 - `docs/dag-doc.md`, which defines T23's prerequisite and delivery criteria.
-- `docs/progress.md`, which marks T22 `BLOCKED`.
+- `docs/progress.md`, which marks T22 `READY` and T23 `BLOCKED`.
 - `docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md`,
-  which blocks T23 until the M5 device identity design exists.
+  which says the final M5 device identity design still needs to be authored.
 - `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`,
-  which remains the upstream blocker for T22.
+  which supplies the completed login-gate readiness and reset baseline.
 
 ## Validation
 
@@ -99,12 +90,11 @@ Run from the inherited repository root.
 | Command | Result |
 |---|---|
 | `rtk rg -n "^\\| T22 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T22 is not marked `DONE` in the status column. |
-| `rtk rg -n "^\\| T22 \\|[^|]*\\|[^|]*\\|[^|]*\\| BLOCKED \\||T23 must not use" echothink-studio-new/docs/progress.md echothink-studio-new/docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md` | Passed: progress and the T22 note block T23. |
+| `rtk rg -n "^\\| T22 \\|[^|]*\\|[^|]*\\|[^|]*\\| READY \\|" echothink-studio-new/docs/progress.md` | Passed: progress marks T22 `READY`, so T20 is no longer the blocker. |
+| `rtk rg -n "Status: READY|T22 Work Not Started|T23 must not use" echothink-studio-new/docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md` | Passed: the T22 note records that the design is still not complete. |
 | `rtk rg -n "### T23: Implement Device Key Generation And Storage|Prerequisites: T22|0007-device-identity.patch" echothink-studio-new/docs/dag-doc.md echothink-studio-new/docs/ungoogled_to_echothink_browser_change_plan.md echothink-studio-new/docs/echothink_browser_construction.md` | Passed: T23 scope and delivery target anchors exist. |
 | `rtk ls -l patches/echothink/0007-device-identity.patch` | Failed as expected: no blocked patch artifact was created. |
-| `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Failed as expected: inactive blocked patch is not listed in the active patch pipeline. |
-| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md echothink-studio-new/docs/progress.md` | Passed: the T23 note and shared progress file exist. |
-| `rtk git diff --check` | Passed: no whitespace errors. |
+| `rtk rg -n "echothink/0007-device-identity.patch" patches/series` | Failed as expected: inactive missing patch is not listed in the active patch pipeline. |
 
 ## Known Limitations
 

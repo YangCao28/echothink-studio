@@ -3,84 +3,54 @@
 Date: 2026-05-29
 Wave: W5
 Delivery target: M5 - device identity design
-Status: BLOCKED
+Status: READY
 
-## Blocker
+## Current State
 
-T22 depends on T00 and T20. T00 is marked `DONE` in `docs/progress.md`, but
-T20 is not marked `DONE` and is not explicitly documented as an acceptable
-baseline dependency for T22.
+T22 depends on T00 and T20. Both prerequisites are now marked `DONE` in
+`docs/progress.md`. The T20 login-gate spec supplies the auth/device readiness
+and reset contract that T22 must align with.
 
-Current T20 evidence is incomplete:
-
-- `docs/progress.md` marks T20 as `READY`, not `DONE`.
-- `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`
-  still has `Status: BLOCKED` and says no login-gate spec was authored.
-- The required M4 login-gate decisions that T22 depends on are still pending:
-  local auth/device readiness flags, the unauthenticated navigation allowlist,
-  blocked-navigation behavior, setup-completion criteria, and diagnostics /
-  support exceptions.
-
-Because the coordination rules require prerequisites to be complete or
-explicitly accepted before starting dependent work, T22 cannot define the
-authoritative device identity fields, DPAPI storage shape, non-secret metadata
-location, reset/logout behavior, or extension bridge boundaries yet.
+This note is not the M5 device identity design. No final T22 design was
+authored in this T20 pass, and T23 remains blocked until T22 is completed.
 
 ## Prerequisite Check
 
 | Prerequisite | Required by | Status | Evidence |
 |---|---|---|---|
 | T00 - Baseline repo audit | T22 | DONE | `docs/progress.md` marks T00 `DONE`; task note exists at `docs/echothink-browser-alpha/t00-baseline-repo-audit.md`. |
-| T20 - Define login gate local state and allowlist | T22 | INCOMPLETE | `docs/progress.md` marks T20 `READY`, not `DONE`; the T20 task note still says `Status: BLOCKED` and records that no login-gate spec was authored. |
+| T20 - Define login gate local state and allowlist | T22 | DONE | `docs/progress.md` marks T20 `DONE`; the T20 task note defines local auth/device readiness prefs, allowlist, blocked-navigation behavior, setup completion, diagnostics/support exceptions, and reset/logout semantics. |
 
-No progress entry or task note explicitly accepts incomplete T20 as a baseline
-dependency for T22.
+No remaining prerequisite blocker is recorded for T22. The next T22 pass may
+define the device identity and Windows DPAPI storage design.
 
-## Missing Prerequisite Work
+## T20 Contract T22 Must Honor
 
-Complete T20 before resuming T22. The exact files that need to be updated are:
+The T22 device identity design must align with these T20 decisions:
 
-- `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`
-- `docs/progress.md`
-
-The exact T20 decisions needed by T22 are:
-
-- Names and meanings for local auth/device readiness state, including how login
-  state, device enrollment, device verification, and setup completion are
-  represented.
-- Whether those readiness values live in profile preferences, Local State, or a
-  split between the two.
-- The final unauthenticated navigation allowlist, including auth, enrollment,
-  browser-required, support/download, update, and diagnostics routes.
-- Whether `chrome://echothink-diagnostics` is implemented, replaced, or kept as
-  a known dead link before it is treated as an exception route.
-- Blocked-navigation behavior and the local explanation/recovery surface.
-- Setup-completion criteria that unlock normal browsing after login and device
-  verification.
-- Reset/logout semantics for login-gate state, especially which non-secret
-  enrollment flags are cleared on sign-out, explicit local reset, and profile
-  deletion.
-
-T21's implementation patch (`patches/echothink/0006-login-gate.patch`) is not a
-prerequisite for T22, but T22 needs the completed T20 spec before it can align
-device metadata and reset behavior with the login gate.
+- `echothink.device.enrolled` and `echothink.device.verified` are non-secret
+  normal-profile readiness preferences used by the login gate.
+- `echothink.setup.complete` is true only when the auth session is ready and
+  device enrollment plus verification are both ready.
+- Sign-out clears auth readiness and setup completion but does not destroy the
+  local device identity by default.
+- Explicit local reset clears auth readiness, setup completion, device
+  enrollment, device verification, and non-secret enrollment metadata owned by
+  the device identity design.
+- Private keys, access tokens, and signed proof internals must stay out of
+  preferences, extension JavaScript, docs examples, and progress notes.
 
 ## T22 Work Not Started
 
-No device identity design was authored in this blocked pass. In particular,
-this task does not yet define:
+The next T22 pass still needs to define:
 
-- Local device identity fields.
-- Windows DPAPI storage format for private key material.
+- Local device identity fields and meanings.
+- Windows DPAPI private-key storage format and scope.
 - Profile preference versus Local State placement for non-secret metadata.
-- Reset/logout behavior for device identity and enrollment.
-- The native bridge boundary that keeps private key material out of extension
-  JavaScript.
-
-The broader construction and change-plan docs already identify DPAPI as the
-intended Windows Alpha secure-storage target, but this T22 task has not
-completed the Alpha device identity design because the T20 prerequisite is
-incomplete.
+- Persistence behavior across browser restart.
+- Explicit reset behavior for local enrollment state.
+- Native bridge boundary that keeps private key material out of extension
+  JavaScript, logs, docs examples, and progress notes.
 
 No Chromium patch, extension code, backend service, gateway logic, network
 stack, TLS validation, sandbox, renderer internals, downloads, history,
@@ -94,12 +64,9 @@ proof internals were changed or exposed.
 - `docs/echothink_browser_construction.md` sections 5.6 and 5.7, which define
   the high-level device identity and request-proof architecture.
 - `docs/dag-doc.md`, which defines T22 prerequisites and delivery criteria.
-- `docs/progress.md`, which marks T00 `DONE` and T20 `READY`.
+- `docs/progress.md`, which marks T00 and T20 `DONE` and T22 `READY`.
 - `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`,
-  which still records T20 as blocked and incomplete.
-- `docs/echothink-browser-alpha/t11-add-first-run-shell.md`, which confirms
-  T11 is done but explicitly leaves auth/device readiness and ongoing gate
-  enforcement to T20/T21.
+  which supplies the login-gate readiness and reset contract.
 
 ## Validation
 
@@ -108,17 +75,15 @@ Run from the inherited repository root.
 | Command | Result |
 |---|---|
 | `rtk rg -n "^\\| T00 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T00 is marked `DONE` in the status column. |
-| `rtk rg -n "^\\| T20 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Exited 1 as expected: T20 is not marked `DONE` in the status column. |
-| `rtk rg -n "^\\| T20 \\|[^|]*\\|[^|]*\\|[^|]*\\| READY \\||Status: BLOCKED|No login-gate spec was authored" echothink-studio-new/docs/progress.md echothink-studio-new/docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md` | Passed: T20 is only ready/incomplete in progress and still blocked in the task note. |
-| `rtk rg -n "### T22: Define Device Identity And DPAPI Storage|Prerequisites: T00, T20|DPAPI" echothink-studio-new/docs/dag-doc.md echothink-studio-new/docs/ungoogled_to_echothink_browser_change_plan.md echothink-studio-new/docs/echothink_browser_construction.md` | Passed: T22 scope and DPAPI source anchors exist. |
-| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md echothink-studio-new/docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md echothink-studio-new/docs/progress.md` | Passed: the T22 note, T20 note, and shared progress file exist. |
-| `rtk git diff --check` | Passed: no whitespace errors. |
+| `rtk rg -n "^\\| T20 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T20 is marked `DONE` in the status column. |
+| `rtk rg -n "echothink.device.enrolled|echothink.device.verified|Setup Completion And Unlock|Reset And Logout Semantics" echothink-studio-new/docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md` | Passed: T20 defines the readiness/reset anchors T22 must consume. |
+| `rtk ls -l echothink-studio-new/docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md echothink-studio-new/docs/progress.md` | Passed: the T22 note and shared progress file exist. |
 
 ## Known Limitations
 
-- This note records a prerequisite blocker only; it is not the device identity
-  design.
+- This note records that the prerequisite blocker was resolved by T20; it is
+  not the device identity design.
 - T23 must not use this document as authorization to implement
   `patches/echothink/0007-device-identity.patch`.
-- The broader browser Alpha docs were left unchanged because no T22 design
-  decisions are complete yet.
+- T22 delivery criteria remain unmet until the device identity and DPAPI design
+  is authored and marked `DONE`.

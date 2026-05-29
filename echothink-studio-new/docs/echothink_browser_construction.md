@@ -342,6 +342,16 @@ local diagnostics page
 After successful login and device verification, the browser enters normal
 workspace mode.
 
+The Alpha source of truth for this gate is
+`docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`.
+It fixes the local readiness preference keys, explicit pre-setup allowlist,
+blocked-navigation behavior, setup-completion criteria, and diagnostics/support
+exceptions for the T21 login-gate patch. The active Alpha patch is
+`patches/echothink/0006-login-gate.patch`; it registers the readiness prefs,
+keeps pre-setup New Tab on `chrome://echothink-first-run`, rewrites
+browser-level blocked navigations to that local shell, and restores normal
+Chromium navigation after the readiness flags indicate setup completion.
+
 ### 5.6 Device Identity
 
 Each installation must have browser-bound device identity.

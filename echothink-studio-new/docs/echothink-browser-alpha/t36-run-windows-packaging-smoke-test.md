@@ -24,7 +24,6 @@ Alpha browser artifacts:
 
 | Missing task | Missing artifact |
 |---|---|
-| T21 - Implement login-required startup gate | `patches/echothink/0006-login-gate.patch` |
 | T23 - Implement device key generation and storage | `patches/echothink/0007-device-identity.patch` |
 | T26 - Implement proof signing helper | `patches/echothink/0008-request-proof-helper.patch` |
 
@@ -105,8 +104,10 @@ present.
 | Command | Result |
 |---|---|
 | `rtk rg -n "^\\| T(31|32|35) \\|" echothink-studio-new/docs/progress.md` | Passed for prerequisite discovery: T31 and T32 are `DONE`; T35 is `BLOCKED`. |
-| `rtk rg -n "^Status: BLOCKED|T33 is blocked|0006-login-gate|0007-device-identity|0008-request-proof-helper" echothink-studio-new/docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md` | Passed: T35 records the blocking missing artifacts. |
-| `rtk ls -l patches/echothink/0006-login-gate.patch patches/echothink/0007-device-identity.patch patches/echothink/0008-request-proof-helper.patch` | Failed as expected: all three required blocked patch artifacts are missing. |
+| `rtk rg -n "^Status: BLOCKED|T33 is blocked|0007-device-identity|0008-request-proof-helper" echothink-studio-new/docs/echothink-browser-alpha/t35-run-echothink-behavior-tests.md` | Passed: T35 records the remaining blocking missing artifacts. |
+| `rtk ls -l patches/echothink/0006-login-gate.patch` | Passed: T21 login-gate patch exists. |
+| `rtk rg -n "echothink/0006-login-gate.patch" patches/series` | Passed: T21 login-gate patch is active in the patch pipeline. |
+| `rtk ls -l patches/echothink/0007-device-identity.patch patches/echothink/0008-request-proof-helper.patch` | Failed as expected: the remaining required blocked patch artifacts are missing. |
 | `rtk ls -l patches/echothink/0010-windows-packaging-identity.patch assets/icons/echothink.ico assets/installer/echothink-setup.ico` | Passed: T31 patch and T06/T32 icon inputs exist. |
 | `rtk rg -n "Echothink Browser Dev|EchothinkBrowserSetup|Software\\\\Echothink\\\\Browser Dev" patches/echothink/0010-windows-packaging-identity.patch` | Passed: Windows Alpha Dev identity strings are present in the packaging patch. |
 | `rtk rg -n "Smoke Test Procedure|Launch and branding|New Tab|Side Panel|Search|Restart persistence|Update-channel metadata|Uninstall" echothink-studio-new/docs/echothink-browser-alpha/t32-add-windows-build-signing-smoke-docs.md` | Passed: T32 contains the Windows smoke procedure T36 should run after unblock. |

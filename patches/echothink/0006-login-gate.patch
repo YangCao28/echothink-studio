@@ -1,0 +1,219 @@
+# Echothink-Patch: 0006-login-gate
+# Title: Enforce local login-required startup/navigation gate
+# Area: login-gate, startup, navigation
+# Depends-On: echothink/0011-first-run-gate-shell.patch (T11 makes chrome://echothink-first-run the sole first-run tab; this patch keeps that local shell as the blocked-navigation recovery page after first run)
+# Spec-Depends-On: docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md (T20 defines the readiness prefs, exact unauthenticated allowlist, blocked-navigation behavior, setup completion, and reset/logout semantics)
+# Browser-Layer-Reason: The browser must prevent normal top-level browsing before local auth/device setup is complete, including typed URLs, startup/restored tabs, New Tab, and browser-created popup/window navigations. This is a browser-shell startup/navigation decision that must work before any Echothink backend is reachable; backend services still own server-side auth, device authorization, replay protection, and rollout policy.
+# Preferred-Surface-Checked: preferences, existing-hook, narrow-native-navigation (profile prefs hold only non-secret readiness flags; New Tab uses the existing URL rewrite hook; browser-level navigations use NavigateParams before app/window routing)
+# Security-Critical-Areas: none (no network stack, TLS validation, sandbox, renderer internals, downloads, history, bookmarks, password manager, cookies, or DevTools changes)
+# Native-Files-Touched: chrome/browser/chrome_content_browser_client.cc, chrome/browser/ui/browser_navigator.cc
+# Rebase-Risk: medium (touches the New Tab URL handler and desktop NavigateParams path used by existing Echothink New Tab and echo-route patches)
+# Validation: Apply inherited patches and active Echothink predecessors through echothink/0011-first-run-gate-shell.patch, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178. Build and verify with a fresh normal profile: (1) first launch opens chrome://echothink-first-run; (2) chrome://newtab resolves to chrome://echothink-first-run until readiness prefs are true; (3) typed arbitrary HTTPS URLs rewrite to chrome://echothink-first-run before setup; (4) the explicit T20 auth/enrollment/support/update/diagnostic routes remain reachable; (5) setting echothink.auth.session_ready, echothink.device.enrolled, and echothink.device.verified true restores normal navigation.
+#
+# Notes:
+# - This patch stores only non-secret readiness booleans and empty diagnostic
+#   strings. It never stores access tokens, refresh tokens, private key material,
+#   request proofs, full blocked URLs, queries, fragments, or referrers.
+# - `echothink.setup.complete` is treated as a derived cached boolean. The gate
+#   recomputes it from `echothink.auth.session_ready`,
+#   `echothink.device.enrolled`, and `echothink.device.verified`; if any
+#   underlying readiness flag is false, the cached setup-complete flag is
+#   cleared.
+# - Blocked browser-level navigations are rewritten to
+#   chrome://echothink-first-run and the referrer is cleared. The blocked target
+#   is not appended to the local URL or persisted.
+# - The allowlist exactly follows the T20 spec for setup, diagnostics, update,
+#   support, and browser-required routes. General app/workspace routes, external
+#   sites, direct IP literals, file://, arbitrary extension URLs, and external
+#   protocol handlers are not allowed before setup.
+# - This is not backend authorization. Echothink services and gateways remain
+#   responsible for session validity, device authorization, replay protection,
+#   and protected workspace/business data.
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -608,5 +608,41 @@ GURL ReplaceURLHostAndPath(const GURL& url,
+       url::Component(0, path.length()));
+   return url.ReplaceComponents(replacements);
+ }
++
++constexpr char kEchothinkAuthSessionReadyPref[] =
++    "echothink.auth.session_ready";
++constexpr char kEchothinkDeviceEnrolledPref[] = "echothink.device.enrolled";
++constexpr char kEchothinkDeviceVerifiedPref[] = "echothink.device.verified";
++constexpr char kEchothinkSetupCompletePref[] = "echothink.setup.complete";
++constexpr char kEchothinkSetupCompletedAtPref[] =
++    "echothink.setup.completed_at";
++constexpr char kEchothinkLastBlockedAtPref[] =
++    "echothink.setup.last_blocked_at";
++constexpr char kEchothinkLastBlockedSchemePref[] =
++    "echothink.setup.last_blocked_scheme";
++constexpr char kEchothinkFirstRunURL[] = "chrome://echothink-first-run";
++
++PrefService* GetEchothinkLoginGatePrefs(Profile* profile) {
++  if (!profile) {
++    return nullptr;
++  }
++  return profile->GetOriginalProfile()->GetPrefs();
++}
++
++bool IsEchothinkSetupComplete(Profile* profile) {
++  PrefService* prefs = GetEchothinkLoginGatePrefs(profile);
++  if (!prefs) {
++    return false;
++  }
++
++  const bool ready =
++      prefs->GetBoolean(kEchothinkAuthSessionReadyPref) &&
++      prefs->GetBoolean(kEchothinkDeviceEnrolledPref) &&
++      prefs->GetBoolean(kEchothinkDeviceVerifiedPref);
++  if (prefs->GetBoolean(kEchothinkSetupCompletePref) != ready) {
++    prefs->SetBoolean(kEchothinkSetupCompletePref, ready);
++  }
++  return ready;
++}
+ // Handles the rewriting of the new tab page URL based on group policy.
+ bool HandleNewTabPageLocationOverride(
+@@ -849,6 +907,12 @@ bool HandleNewTabPageLocationOverride(
+   if (base::CommandLine::ForCurrentProcess()->HasSwitch("custom-ntp"))
+     ntp_location = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("custom-ntp");
+   if (profile->IsOffTheRecord() && ntp_location.find("chrome://") != std::string::npos) return false;
++  // Echothink Browser login gate (T21): before local auth/device setup is
++  // complete, New Tab must stay on the local setup/recovery shell rather than
++  // opening the general-purpose workspace route.
++  if (!IsEchothinkSetupComplete(profile)) {
++    ntp_location = kEchothinkFirstRunURL;
++  }
+   // Echothink Browser: seed the default New Tab route for normal profiles when
+   // no New Tab override preference or --custom-ntp switch is set. Incognito and
+   // explicit kNewTabPageLocationOverride (NewTabPageLocation policy) values are
+@@ -1541,6 +1605,14 @@ void ChromeContentBrowserClient::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterBooleanPref(prefs::kDisable3DAPIs, false);
+   registry->RegisterBooleanPref(prefs::kEnableHyperlinkAuditing, false);
++  registry->RegisterBooleanPref(kEchothinkAuthSessionReadyPref, false);
++  registry->RegisterBooleanPref(kEchothinkDeviceEnrolledPref, false);
++  registry->RegisterBooleanPref(kEchothinkDeviceVerifiedPref, false);
++  registry->RegisterBooleanPref(kEchothinkSetupCompletePref, false);
++  registry->RegisterStringPref(kEchothinkSetupCompletedAtPref, std::string());
++  registry->RegisterStringPref(kEchothinkLastBlockedAtPref, std::string());
++  registry->RegisterStringPref(kEchothinkLastBlockedSchemePref,
++                               std::string());
+   // Register user prefs for mapping SitePerProcess and IsolateOrigins in
+   // user policy in addition to the same named ones in Local State (which are
+   // used for mapping the command-line flags).
+--- a/chrome/browser/ui/browser_navigator.cc
++++ b/chrome/browser/ui/browser_navigator.cc
+@@ -66,6 +66,7 @@
+ #include "content/public/browser/render_view_host.h"
+ #include "content/public/browser/site_isolation_policy.h"
+ #include "content/public/browser/web_contents.h"
++#include "content/public/common/url_constants.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "ui/base/window_open_disposition.h"
+ #include "ui/display/display.h"
+@@ -134,6 +135,95 @@ Browser* GetOrCreateBrowser(Profile* profile, bool user_gesture) {
+   return browser ? browser->GetBrowserForMigrationOnly() : nullptr;
+ }
+ 
++constexpr char kEchothinkAuthSessionReadyPref[] =
++    "echothink.auth.session_ready";
++constexpr char kEchothinkDeviceEnrolledPref[] = "echothink.device.enrolled";
++constexpr char kEchothinkDeviceVerifiedPref[] = "echothink.device.verified";
++constexpr char kEchothinkSetupCompletePref[] = "echothink.setup.complete";
++constexpr char kEchothinkFirstRunURL[] = "chrome://echothink-first-run";
++
++PrefService* GetEchothinkLoginGatePrefs(Profile* profile) {
++  if (!profile) {
++    return nullptr;
++  }
++  return profile->GetOriginalProfile()->GetPrefs();
++}
++
++bool IsEchothinkSetupComplete(Profile* profile) {
++  PrefService* prefs = GetEchothinkLoginGatePrefs(profile);
++  if (!prefs) {
++    return false;
++  }
++
++  const bool ready =
++      prefs->GetBoolean(kEchothinkAuthSessionReadyPref) &&
++      prefs->GetBoolean(kEchothinkDeviceEnrolledPref) &&
++      prefs->GetBoolean(kEchothinkDeviceVerifiedPref);
++  if (prefs->GetBoolean(kEchothinkSetupCompletePref) != ready) {
++    prefs->SetBoolean(kEchothinkSetupCompletePref, ready);
++  }
++  return ready;
++}
++
++bool IsEchothinkAllowedChromeURL(const GURL& url) {
++  if (!url.SchemeIs(content::kChromeUIScheme)) {
++    return false;
++  }
++
++  const std::string host = url.host();
++  if (host == "echothink-first-run" || host == "echothink-diagnostics" ||
++      host == chrome::kChromeUIVersionHost || host == "policy" ||
++      host == "extensions") {
++    return true;
++  }
++
++  return host == "settings" && url.path_piece() == "/help";
++}
++
++bool IsEchothinkAllowedHTTPSURL(const GURL& url) {
++  if (!url.SchemeIs(url::kHttpsScheme)) {
++    return false;
++  }
++
++  const std::string host = url.host();
++  const std::string path = url.path();
++
++  if (host == "updates.echothink.ai") {
++    return true;
++  }
++  if (host == "auth.echothink.ai") {
++    return path == "/login" || path == "/browser/callback" ||
++           path == "/device/enroll" || path == "/device/complete";
++  }
++  if (host == "app.echothink.ai") {
++    return path == "/browser-required" || path == "/support" ||
++           path == "/download-browser";
++  }
++  return false;
++}
++
++bool IsEchothinkAllowedPreSetupURL(const GURL& url) {
++  return IsEchothinkAllowedChromeURL(url) || IsEchothinkAllowedHTTPSURL(url);
++}
++
++void ApplyEchothinkLoginGate(NavigateParams* params) {
++  if (!params || !params->initiating_profile) {
++    return;
++  }
++
++  if (IsEchothinkSetupComplete(params->initiating_profile) ||
++      IsEchothinkAllowedPreSetupURL(params->url)) {
++    return;
++  }
++
++  // Echothink Browser login gate (T21): before setup completes, replace
++  // browser-level top-frame navigation to arbitrary destinations with the
++  // local setup/recovery shell. Do not carry the blocked URL, query, fragment,
++  // or referrer into the local page.
++  params->url = GURL(kEchothinkFirstRunURL);
++  params->referrer = content::Referrer();
++}
++
+ bool IncognitoModeForced(const Profile* profile) {
+   return IncognitoModePrefs::GetAvailability(profile->GetPrefs()) ==
+          policy::IncognitoModeAvailability::kForced;
+@@ -620,6 +729,8 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
+     return nullptr;
+   }
+ 
++  ApplyEchothinkLoginGate(params);
++
+   // Block navigation requests when in locked fullscreen mode. We allow
+   // navigation requests in the webapp when locked for OnTask (only relevant for
+   // non-web browser scenarios).

@@ -485,6 +485,17 @@ chrome://echothink-diagnostics
 chrome://echothink-first-run
 ```
 
+The Alpha login-gate state and allowlist source of truth is
+`docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`.
+It defines the profile preference readiness flags, exact unauthenticated
+top-level navigation allowlist, blocked-navigation behavior, setup-completion
+criteria, and diagnostics/support exceptions that
+`patches/echothink/0006-login-gate.patch` implements for Alpha. The active T21
+patch registers the non-secret readiness prefs, routes pre-setup New Tab to the
+local gate shell, rewrites browser-level blocked navigations to
+`chrome://echothink-first-run`, and leaves backend authorization/device proof to
+later tasks and services.
+
 Acceptance:
 
 - First launch forces login or enrollment path.
