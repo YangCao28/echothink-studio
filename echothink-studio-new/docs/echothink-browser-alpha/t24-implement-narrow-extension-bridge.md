@@ -3,76 +3,129 @@
 Date: 2026-05-29
 Wave: W7
 Delivery target: M5 - device bridge API
-Status: READY
+Status: DONE
 
 ## Current State
 
-T24 depends on T13 and T23. Both prerequisites are now complete:
+T24 depends on T13 and T23. Both prerequisites are complete:
 
-- T13 is marked `DONE` and supplies the bundled workspace extension ID
+- T13 is `DONE` and supplies the bundled workspace extension ID
   `lokdibgfmiemhdoogailbfpdggndpolk` with narrow manifest permissions.
-- T23 is marked `DONE` and supplies the native device identity implementation
-  in active patch `patches/echothink/0007-device-identity.patch`.
+- T23 is `DONE` and supplies the native device identity implementation in
+  active patch `patches/echothink/0007-device-identity.patch`.
 
-T24 is no longer blocked by missing device-key storage. This note is a handoff
-refresh only; it does not implement the bridge.
+T24 adds the active bridge patch:
 
-## Prerequisite Check
+```text
+patches/echothink/0024-narrow-extension-bridge.patch
+```
 
-| Prerequisite | Required by | Status | Evidence |
-|---|---|---|---|
-| T13 - Add bundled extension install patch | T24 | DONE | `docs/progress.md` marks T13 `DONE`; the task note records the fixed bundled extension ID and narrow manifest permissions. |
-| T23 - Implement device key generation and storage | T24 | DONE | `docs/progress.md` marks T23 `DONE`; `patches/echothink/0007-device-identity.patch` exists and is active in `patches/series`. |
+and appends it to `patches/series` after
+`echothink/0018-side-panel-local-states.patch`. The patch number is outside the
+reserved `0008` proof-helper slot because T26 still owns
+`patches/echothink/0008-request-proof-helper.patch`.
 
-## Handoff For T24
+## Implementation
 
-The bridge implementation must call the native device identity boundary from
-T23 instead of creating another key store. The expected bridge methods remain:
+The bridge exposes one Chrome extension API namespace to the bundled workspace
+extension:
+
+```text
+chrome.echothinkDevice
+```
+
+Allowed methods:
 
 - `getDeviceStatus`
 - `requestEnrollmentChallenge`
 - `signProofPayload`
 - `clearEnrollment`
 
-The bridge must restrict callers to bundled extension ID
-`lokdibgfmiemhdoogailbfpdggndpolk`, must not expose private key bytes or DPAPI
-blobs to extension JavaScript, and must define errors for missing device,
-locked key, unsupported platform, and reset.
+The API is restricted twice:
 
-## T24 Work Not Started
+- `_api_features.json` allowlists only the SHA1 hashed ID for bundled extension
+  `lokdibgfmiemhdoogailbfpdggndpolk` and disables generic component-extension
+  auto-grant.
+- The native implementation checks the exact caller extension ID before reading
+  device state, generating enrollment material, signing, or resetting.
 
-No Chromium bridge patch was created by this T23 handoff update. In particular,
-this note does not:
+The bundled extension manifest is unchanged. It still declares only:
 
-- Create a new Echothink bridge patch.
-- Add a bridge patch to `patches/series`.
-- Add extension methods for `getDeviceStatus`, `requestEnrollmentChallenge`,
-  `signProofPayload`, or `clearEnrollment`.
-- Change the bundled extension manifest or permissions.
-- Add broad host permissions, `nativeMessaging`, management APIs, or a
-  general-purpose privileged bridge.
-- Change backend services, gateway logic, search ranking, chat orchestration,
-  workflow orchestration, business pages, network stack, TLS validation,
-  sandbox, renderer internals, downloads, history, bookmarks, password manager,
-  cookies, or DevTools behavior.
-- Expose private key bytes, access tokens, signed proof values, or proof
-  internals.
+```text
+sidePanel
+storage
+tabs
+activeTab
+scripting
+```
 
-## Source Anchors Inspected
+Host permissions remain limited to Echothink-owned domains.
 
-- `docs/ungoogled_to_echothink_browser_change_plan.md` sections 5.9 and 5.10,
-  which sketch the device bridge and request proof boundaries.
-- `docs/echothink_browser_construction.md` sections 5.6 and 5.7, which define
-  the high-level device identity and request-proof architecture.
-- `docs/dag-doc.md`, which defines T24 prerequisites, required bridge methods,
-  and delivery criteria.
-- `docs/progress.md`, which now marks T13 and T23 `DONE` and T24 `READY`.
-- `docs/echothink-browser-alpha/t13-add-bundled-extension-install-patch.md`,
-  which records the bundled extension ID and narrow manifest boundary.
-- `docs/echothink-browser-alpha/t23-implement-device-key-generation-and-storage.md`,
-  which records the completed native device identity implementation.
-- `extensions/echothink-workspace/manifest.json`, which remains the bundled
-  extension source manifest and should not be widened just to add the bridge.
+## Bridge Behavior
+
+`getDeviceStatus` returns non-secret metadata only: support flag, protected-key
+presence, installation ID, key ID, algorithm, key storage name, browser
+channel/version, public JWK, profile enrollment status, readiness booleans, and
+reset-required state.
+
+`requestEnrollmentChallenge` ensures local enrollment material exists through
+the T23 native device identity boundary and returns public-key registration
+material plus non-secret browser metadata. It does not call backend services.
+
+`signProofPayload` signs a bounded UTF-8 payload string with the browser-owned
+device key and returns only the key ID, algorithm, signature, and signature
+encoding. The private key remains inside native browser code. T25/T26 still own
+the canonical request-proof payload and Echothink destination allowlist before
+the extension attaches proofs to protected API requests.
+
+`clearEnrollment` calls the T23 reset helper to delete the protected local key,
+clear local enrollment/readiness prefs, and rotate local installation state.
+
+Defined bridge error codes:
+
+- `missing_device`
+- `locked_key`
+- `unsupported_platform`
+- `reset`
+- `invalid_payload`
+
+## Changed Files
+
+- `extensions/echothink-workspace/background.js`
+- `patches/echothink/0024-narrow-extension-bridge.patch`
+- `patches/series`
+- `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
+- `docs/progress.md`
+
+The patch itself modifies these Chromium paths when applied:
+
+- `chrome/browser/BUILD.gn`
+- `chrome/browser/echothink/device_identity/device_identity_service.h`
+- `chrome/browser/echothink/device_identity/device_identity_service.cc`
+- `chrome/browser/extensions/api/BUILD.gn`
+- `chrome/browser/extensions/api/echothink_device/BUILD.gn`
+- `chrome/browser/extensions/api/echothink_device/echothink_device_api.h`
+- `chrome/browser/extensions/api/echothink_device/echothink_device_api.cc`
+- `chrome/common/extensions/api/_api_features.json`
+- `chrome/common/extensions/api/api_sources.gni`
+- `chrome/common/extensions/api/echothink_device.idl`
+- `chrome/browser/resources/echothink_workspace/background.js`
+
+## Boundaries Preserved
+
+This task does not implement backend services, gateway logic, search ranking,
+chat orchestration, workflow orchestration, business pages, canonical request
+proof policy, replay protection, or proof validation.
+
+The patch does not change Chromium network stack, TLS validation, sandbox,
+renderer internals, downloads, history, bookmarks, password manager, cookies,
+or DevTools behavior.
+
+No private key bytes, DPAPI blobs, access tokens, raw unprotected key handles,
+or proof internals are exposed to extension JavaScript. The source extension
+contains no token/private-key/proof-header handling.
 
 ## Validation
 
@@ -80,16 +133,24 @@ Run from the inherited repository root.
 
 | Command | Result |
 |---|---|
-| `rtk rg -n "^\\| T13 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T13 is marked `DONE` in the status column. |
-| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T23 is marked `DONE` in the status column. |
-| `rtk rg -n "^echothink/0007-device-identity\\.patch$" patches/series` | Passed: the T23 patch is active. |
-| `rtk rg -n "### T24: Implement Narrow Extension Bridge|Prerequisites: T13, T23|getDeviceStatus|signProofPayload" echothink-studio-new/docs/dag-doc.md echothink-studio-new/docs/ungoogled_to_echothink_browser_change_plan.md` | Passed: T24 scope and bridge method anchors exist. |
-| `rtk python3 -m json.tool extensions/echothink-workspace/manifest.json` | Passed: source manifest parses as JSON. |
-| `rtk git diff --check` | Passed: no whitespace errors. |
+| `rtk rg -n "^\\| T13 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T13 is marked `DONE`. |
+| `rtk rg -n "^\\| T23 \\|[^|]*\\|[^|]*\\|[^|]*\\| DONE \\|" echothink-studio-new/docs/progress.md` | Passed: T23 is marked `DONE`. |
+| `rtk rg -n "^echothink/0007-device-identity\\.patch$" patches/series` | Passed: T23 patch is active. |
+| `rtk rg -n "^echothink/0024-narrow-extension-bridge\\.patch$" patches/series` | Passed: T24 patch is active. |
+| `rtk git apply --numstat patches/echothink/0024-narrow-extension-bridge.patch` | Passed: unified diff parses cleanly and reports the expected Chromium bridge/schema/resource changes. |
+| `rtk python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `rtk python3 devutils/validate_config.py` | Passed, exit 0. |
+| `rtk python3 -m json.tool extensions/echothink-workspace/manifest.json` | Passed: manifest JSON parses. |
+| Manifest shape check with Node | Passed: MV3, no `update_url`, exact permissions and Echothink host permissions preserved, and forbidden broad permissions absent. |
+| `rtk node --check extensions/echothink-workspace/background.js` | Passed. |
+| `rtk rg -n "private[_-]?key|privateKey|DPAPI|protected_payload|access[_-]?token|refresh[_-]?token|Authorization|Bearer|DPoP|signature" extensions/echothink-workspace` | Exited 1 as expected: extension source contains no private-key, token, proof-header, or signature handling. |
 
 ## Known Limitations
 
-- This is a readiness handoff, not the M5 device bridge API implementation.
-- T24 delivery criteria remain unmet until a future task creates the bridge
-  patch and validates extension-side behavior.
-- No runtime extension bridge smoke test was run because no bridge patch exists.
+- This macOS worktree has no local Chromium source checkout or Windows runtime
+  build, so Windows compile, DPAPI runtime, component-extension API smoke, and
+  unauthorized-extension runtime checks were not run here.
+- `signProofPayload` is a bundled-extension-only signing bridge. T25/T26 still
+  must define and enforce canonical request-proof payloads and the Echothink
+  destination allowlist before proofs are attached to protected API requests.

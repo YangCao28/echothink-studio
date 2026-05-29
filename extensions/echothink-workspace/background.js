@@ -1,4 +1,11 @@
 const SIDE_PANEL_PATH = "sidepanel.html";
+const DEVICE_BRIDGE_MESSAGE_TYPE = "echothink.device.bridge";
+const DEVICE_BRIDGE_METHODS = new Set([
+  "getDeviceStatus",
+  "requestEnrollmentChallenge",
+  "signProofPayload",
+  "clearEnrollment",
+]);
 
 function logSidePanelError(action, error) {
   console.warn(`Unable to ${action}`, error);
@@ -61,6 +68,61 @@ function scheduleSidePanelInitialization() {
   });
 }
 
+function isInternalExtensionPageSender(sender) {
+  return (
+    sender?.id === chrome.runtime.id &&
+    typeof sender.url === "string" &&
+    sender.url.startsWith(chrome.runtime.getURL(""))
+  );
+}
+
+function isDeviceBridgeMessage(message) {
+  return (
+    message &&
+    typeof message === "object" &&
+    message.type === DEVICE_BRIDGE_MESSAGE_TYPE &&
+    DEVICE_BRIDGE_METHODS.has(message.method)
+  );
+}
+
+async function invokeDeviceBridge(method, payload) {
+  const nativeBridge = chrome.echothinkDevice;
+  const bridgeMethod = nativeBridge?.[method];
+
+  if (typeof bridgeMethod !== "function") {
+    return {
+      ok: false,
+      error: "unsupported_platform",
+    };
+  }
+
+  return new Promise((resolve) => {
+    const callback = (result) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        resolve({
+          ok: false,
+          error: lastError.message || "bridge_error",
+        });
+        return;
+      }
+
+      resolve(result ?? { ok: false, error: "missing_device" });
+    };
+
+    if (
+      method === "getDeviceStatus" ||
+      method === "requestEnrollmentChallenge" ||
+      method === "clearEnrollment"
+    ) {
+      bridgeMethod(callback);
+      return;
+    }
+
+    bridgeMethod(payload ?? {}, callback);
+  });
+}
+
 async function openSidePanelFromAction(tab) {
   await configureDefaultSidePanel();
   await configureTabSidePanel(tab?.id);
@@ -81,6 +143,26 @@ chrome.action?.onClicked?.addListener((tab) => {
   openSidePanelFromAction(tab).catch((error) => {
     logSidePanelError("open side panel from toolbar action", error);
   });
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (
+    !isDeviceBridgeMessage(message) ||
+    !isInternalExtensionPageSender(sender)
+  ) {
+    return false;
+  }
+
+  invokeDeviceBridge(message.method, message.payload)
+    .then(sendResponse)
+    .catch((error) => {
+      sendResponse({
+        ok: false,
+        error: "bridge_error",
+      });
+      logSidePanelError("invoke device bridge", error);
+    });
+  return true;
 });
 
 chrome.tabs.onCreated.addListener((tab) => {

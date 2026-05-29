@@ -25,13 +25,11 @@ manufactured.
 
 ## Blocking Work Required
 
-The immediate missing browser-side artifacts are the same blockers recorded by
-T33 through T36:
+The immediate missing browser-side artifacts remaining after T24 are the same
+blockers recorded by T33 through T36:
 
 | Missing task | Required artifact or decision | Exact file or decision needed |
 |---|---|---|
-| T23 | Device key generation/storage patch | Create `patches/echothink/0007-device-identity.patch` and add `echothink/0007-device-identity.patch` to `patches/series` when active. |
-| T24 | Narrow extension bridge artifact | T24 task note now exists at `docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`, but T24 remains `BLOCKED`; deliver the bridge implementation artifact, including any required active patch and `patches/series` entry. |
 | T25 | Final proof payload and allowlist spec | Complete `docs/echothink-browser-alpha/t25-define-request-proof-payload-and-allowlist.md` with final payload fields, URL allowlist, signing boundary, replay controls, and failure behavior. |
 | T26 | Request proof signing helper patch | Create `patches/echothink/0008-request-proof-helper.patch` and add `echothink/0008-request-proof-helper.patch` to `patches/series` when active. |
 | T33 | Passing full patch validation | Rerun full patch validation against the complete ordered patch set and mark T33 `DONE`. |
@@ -65,8 +63,8 @@ No Windows Alpha candidate exists from T37.
 | Chromium pin | `148.0.7778.178` from `chromium_version.txt`. |
 | Repository revision marker | `1` from `revision.txt`. |
 | Git HEAD after merging T24 before T37 docs edits | `7bba82a18a43e6a5c6551a582a900ca73a571ce3`. |
-| Active Echothink patch count | `15`. |
-| Active missing required Alpha patch IDs | `0007-device-identity`, `0008-request-proof-helper`. |
+| Active Echothink patch count | `17`. |
+| Active missing required Alpha patch IDs | `0008-request-proof-helper`. |
 
 Active Echothink patch list from `patches/series`:
 
@@ -78,6 +76,7 @@ echothink/0004-bundled-workspace-extension.patch
 echothink/0005-default-search-provider.patch
 echothink/0011-first-run-gate-shell.patch
 echothink/0006-login-gate.patch
+echothink/0007-device-identity.patch
 echothink/0009-echo-protocol-router.patch
 echothink/0012-invalid-echo-route-fallback.patch
 echothink/0010-windows-packaging-identity.patch
@@ -86,13 +85,13 @@ echothink/0015-side-panel-mode-selector.patch
 echothink/0017-workspace-context-shell.patch
 echothink/0016-chat-panel-shell.patch
 echothink/0018-side-panel-local-states.patch
+echothink/0024-narrow-extension-bridge.patch
 ```
 
-The required Alpha patch IDs below are not active in `patches/series` and the
-patch files are absent under `patches/echothink/`:
+The required Alpha patch ID below is not active in `patches/series` and the
+patch file is absent under `patches/echothink/`:
 
 ```text
-echothink/0007-device-identity.patch
 echothink/0008-request-proof-helper.patch
 ```
 
@@ -136,11 +135,13 @@ Commands were run from the canonical browser patch/config root, where
 | `rtk cat chromium_version.txt revision.txt` | Passed: Chromium pin `148.0.7778.178`; repository revision marker `1`. |
 | `rtk git rev-parse HEAD` | Passed: observed T37 source base after T24 merge `7bba82a18a43e6a5c6551a582a900ca73a571ce3`. |
 | `rtk rg -n "^echothink/" patches/series` | Passed: active Echothink patch list recorded above. |
-| `rtk rg -c "^echothink/" patches/series` | Passed: active Echothink patch count is `15`. |
+| `rtk rg -c "^echothink/" patches/series` | Passed: active Echothink patch count is `17`. |
 | `rtk ls -l patches/echothink/0006-login-gate.patch` | Passed: T21 login-gate patch exists. |
 | `rtk rg -n "^echothink/0006-login-gate\\.patch$" patches/series` | Passed: T21 login-gate patch is active in `patches/series`. |
-| `rtk ls -l patches/echothink/0007-device-identity.patch patches/echothink/0008-request-proof-helper.patch` | Failed as expected: the remaining required Alpha patch files are absent. |
-| `rtk rg -n "^echothink/0007-device-identity\\.patch$|^echothink/0008-request-proof-helper\\.patch$" patches/series` | Exited 1 as expected: the missing required patches are not active in `patches/series`. |
+| `rtk ls -l patches/echothink/0007-device-identity.patch patches/echothink/0024-narrow-extension-bridge.patch` | Passed: T23 and T24 patch files exist. |
+| `rtk rg -n "^echothink/0007-device-identity\\.patch$|^echothink/0024-narrow-extension-bridge\\.patch$" patches/series` | Passed: T23 and T24 patches are active in `patches/series`. |
+| `rtk ls -l patches/echothink/0008-request-proof-helper.patch` | Failed as expected: the remaining required Alpha proof-helper patch file is absent. |
+| `rtk rg -n "^echothink/0008-request-proof-helper\\.patch$" patches/series` | Exited 1 as expected: the missing proof-helper patch is not active in `patches/series`. |
 | `rtk python3 devutils/check_patch_files.py` | Passed, exit 0, for the current incomplete patch series. |
 | `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
 | `rtk python3 devutils/validate_config.py` | Passed, exit 0, for the current incomplete patch series. |

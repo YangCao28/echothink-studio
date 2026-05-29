@@ -1,0 +1,854 @@
+# Echothink-Patch: 0024-narrow-extension-bridge
+# Title: Expose a bundled-extension-only device bridge
+# Area: extension-device-bridge
+# Depends-On: echothink/0004-bundled-workspace-extension.patch, echothink/0007-device-identity.patch
+# Spec-Depends-On: docs/echothink-browser-alpha/t22-define-device-identity-and-dpapi-storage.md, docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md
+# Browser-Layer-Reason: The browser owns the local device private key and reset boundary. The bundled workspace extension needs only a narrow native API for non-secret status, enrollment material, proof-payload signing, and explicit local reset; backend services still own enrollment binding, authorization, replay protection, and business logic.
+# Preferred-Surface-Checked: extension, native-required (a normal MV3 extension API is used, allowlisted to the bundled workspace extension ID, and the native device identity component keeps all private-key and DPAPI handling inside browser code)
+# Security-Critical-Areas: none (no network stack, TLS validation, sandbox, renderer internals, downloads, history, bookmarks, password manager, cookies, or DevTools changes)
+# Native-Files-Touched: chrome/browser/BUILD.gn, chrome/browser/echothink/device_identity/device_identity_service.h, chrome/browser/echothink/device_identity/device_identity_service.cc, chrome/browser/extensions/api/BUILD.gn, chrome/browser/extensions/api/echothink_device/* (new), chrome/common/extensions/api/_api_features.json, chrome/common/extensions/api/api_sources.gni, chrome/common/extensions/api/echothink_device.idl, chrome/browser/resources/echothink_workspace/background.js
+# Rebase-Risk: medium (adds one Chrome extension API schema/implementation and reuses the T23 device identity component through a small GN target)
+# Validation: Apply inherited patches and active Echothink predecessors through echothink/0018-side-panel-local-states.patch, then this patch with `patch -p1` against pinned Chromium 148.0.7778.178. Build on Windows and verify that component extension lokdibgfmiemhdoogailbfpdggndpolk can call chrome.echothinkDevice.getDeviceStatus(), requestEnrollmentChallenge(), signProofPayload({payload}), and clearEnrollment(), while an unpacked extension with another ID cannot access the API and direct calls still fail the native caller-ID guard. Confirm returned objects never contain private key bytes, DPAPI blobs, access tokens, or raw unprotected key handles.
+#
+# Notes:
+# - The API feature is allowlisted to the SHA1 hashed extension ID for the
+#   bundled workspace extension and disables generic component-extension auto
+#   grant. The native implementation also checks the exact extension ID before
+#   touching device identity state.
+# - Public API results contain only non-secret metadata, public JWK registration
+#   material, reset status, or a DER ECDSA-SHA256 signature encoded as base64url.
+#   The private key and DPAPI envelope remain inside browser-owned native code.
+# - signProofPayload is intentionally limited to the bundled extension. T25/T26
+#   still own the canonical request-proof payload and Echothink-domain allowlist
+#   for protected API requests; T24 only provides the narrow bridge boundary.
+# - The extension manifest is unchanged: no broad host permissions, native
+#   messaging, management, cookies, webRequest, downloads, history, bookmarks,
+#   debugger, or DevTools permissions are added.
+
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -158,6 +158,23 @@ source_set("shell_integration") {
+   ]
+ }
+ 
++source_set("echothink_device_identity") {
++  sources = [
++    "echothink/device_identity/device_identity_service.cc",
++    "echothink/device_identity/device_identity_service.h",
++  ]
++
++  public_deps = [ "//base" ]
++
++  deps = [
++    "//chrome/common:channel_info",
++    "//components/pref_registry",
++    "//components/prefs",
++    "//components/version_info",
++    "//crypto",
++  ]
++}
++
+ # Use a static library here because many test binaries depend on this but don't
+ # require many files from it. This makes linking more efficient.
+ static_library("browser") {
+@@ -302,7 +327,5 @@ static_library("browser") {
+     "chrome_content_browser_client_navigation_throttles.h",
+     "chrome_content_browser_client_receiver_bindings.cc",
+-    "echothink/device_identity/device_identity_service.cc",
+-    "echothink/device_identity/device_identity_service.h",
+     "chrome_resource_bundle_helper.cc",
+     "chrome_resource_bundle_helper.h",
+     "expired_flags_list.h",
+@@ -1877,6 +1900,7 @@ static_library("browser") {
+   deps = [
+     ":active_use_util",
+     ":browser_process",
++    ":echothink_device_identity",
+     ":expired_flags_list",
+     ":font_pref",
+     ":global_features",
+--- a/chrome/browser/echothink/device_identity/device_identity_service.h
++++ b/chrome/browser/echothink/device_identity/device_identity_service.h
+@@ -5,6 +5,9 @@
+ #define CHROME_BROWSER_ECHOTHINK_DEVICE_IDENTITY_DEVICE_IDENTITY_SERVICE_H_
+ 
++#include <string>
++#include <string_view>
++
+ #include "base/files/file_path.h"
+ 
+ class PrefRegistrySimple;
+ class PrefService;
+@@ -60,6 +62,23 @@ enum class EnsureDeviceIdentityResult {
+   kInvalidProtectedKey,
+ };
+ 
++enum class DeviceBridgeError {
++  kNone,
++  kMissingDevice,
++  kLockedKey,
++  kUnsupportedPlatform,
++  kReset,
++};
++
++struct ProofSignature {
++  std::string key_id;
++  std::string key_algorithm;
++  // DER-encoded ECDSA-SHA256 signature, encoded with base64url without
++  // padding. This is a signature result only; private key material is never
++  // exposed through the bridge.
++  std::string signature_base64url;
++};
++
+ // Registers browser-wide non-secret installation/key metadata in Local State.
+ void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
+ 
+@@ -86,6 +104,14 @@ EnsureDeviceIdentityResult EnsureDeviceIdentity(
+ bool HasProtectedDeviceKey(PrefService* local_state,
+                            const base::FilePath& user_data_dir);
+ 
++// Signs a bridge payload with the local device private key. The private key is
++// loaded only inside browser-owned native code from the DPAPI-protected
++// envelope and is never returned to JavaScript.
++DeviceBridgeError SignProofPayload(PrefService* local_state,
++                                   const base::FilePath& user_data_dir,
++                                   std::string_view payload,
++                                   ProofSignature* signature);
++
+ // Deletes the local protected key file, clears non-secret key/enrollment
+ // metadata, rotates installation_id, and clears the T20/T21 login-gate
+ // readiness prefs for the supplied profile.
+--- a/chrome/browser/echothink/device_identity/device_identity_service.cc
++++ b/chrome/browser/echothink/device_identity/device_identity_service.cc
+@@ -12,8 +12,9 @@
+ #include <string_view>
+ #include <vector>
+ 
+ #include "base/base64.h"
+ #include "base/base64url.h"
++#include "base/containers/span.h"
+ #include "base/files/file_util.h"
+ #include "base/json/json_reader.h"
+ #include "base/json/json_writer.h"
+@@ -25,7 +26,8 @@
+ #include "components/prefs/pref_service.h"
+ #include "components/version_info/version_info.h"
+ #include "crypto/keypair.h"
+ #include "crypto/sha2.h"
++#include "crypto/sign.h"
+ 
+ #if BUILDFLAG(IS_WIN)
+ #include <windows.h>
+@@ -431,7 +433,52 @@ bool HasProtectedDeviceKey(PrefService* local_state,
+   return local_state && !user_data_dir.empty() &&
+          base::PathExists(GetProtectedKeyFilePathForUserDataDir(user_data_dir));
+ }
+ 
++DeviceBridgeError SignProofPayload(PrefService* local_state,
++                                   const base::FilePath& user_data_dir,
++                                   std::string_view payload,
++                                   ProofSignature* signature) {
++#if !BUILDFLAG(IS_WIN)
++  return DeviceBridgeError::kUnsupportedPlatform;
++#else
++  if (!signature || !local_state || user_data_dir.empty()) {
++    return DeviceBridgeError::kMissingDevice;
++  }
++
++  const base::FilePath key_path =
++      GetProtectedKeyFilePathForUserDataDir(user_data_dir);
++  if (!base::PathExists(key_path)) {
++    return DeviceBridgeError::kMissingDevice;
++  }
++
++  std::optional<crypto::keypair::PrivateKey> private_key =
++      ReadProtectedKeyEnvelope(key_path);
++  if (!private_key) {
++    return DeviceBridgeError::kLockedKey;
++  }
++
++  std::optional<PublicKeyMetadata> metadata =
++      BuildPublicKeyMetadata(*private_key);
++  if (!metadata) {
++    return DeviceBridgeError::kLockedKey;
++  }
++
++  const std::vector<uint8_t> payload_bytes(payload.begin(), payload.end());
++  std::vector<uint8_t> signed_payload = crypto::sign::Sign(
++      crypto::sign::ECDSA_SHA256, *private_key,
++      base::span<const uint8_t>(payload_bytes.data(), payload_bytes.size()));
++  if (signed_payload.empty()) {
++    return DeviceBridgeError::kLockedKey;
++  }
++
++  signature->key_id = metadata->key_id;
++  signature->key_algorithm = kDeviceKeyAlgorithm;
++  signature->signature_base64url = BytesToBase64Url(
++      BytesAsStringView(signed_payload.data(), signed_payload.size()));
++  return DeviceBridgeError::kNone;
++#endif
++}
++
+ bool ResetLocalEnrollmentState(PrefService* local_state,
+                                PrefService* profile_prefs,
+                                const base::FilePath& user_data_dir) {
+--- a/chrome/browser/extensions/api/BUILD.gn
++++ b/chrome/browser/extensions/api/BUILD.gn
+@@ -39,6 +39,7 @@ group("api_implementations") {
+       "//chrome/browser/extensions/api/debugger",
+       "//chrome/browser/extensions/api/desktop_capture",
+       "//chrome/browser/extensions/api/downloads_internal",
++      "//chrome/browser/extensions/api/echothink_device",
+       "//chrome/browser/extensions/api/enterprise_hardware_platform",
+       "//chrome/browser/extensions/api/extension_action",
+       "//chrome/browser/extensions/api/font_settings",
+--- /dev/null
++++ b/chrome/browser/extensions/api/echothink_device/BUILD.gn
+@@ -0,0 +1,27 @@
++# Copyright 2026 The Chromium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import("//extensions/buildflags/buildflags.gni")
++
++assert(enable_extensions_core)
++
++source_set("echothink_device") {
++  sources = [
++    "echothink_device_api.cc",
++    "echothink_device_api.h",
++  ]
++
++  configs += [ "//build/config/compiler:wexit_time_destructors" ]
++
++  public_deps = [
++    "//base",
++    "//extensions/browser",
++  ]
++
++  deps = [
++    "//chrome/browser:browser_process",
++    "//chrome/browser:echothink_device_identity",
++    "//chrome/browser/profiles:profile",
++    "//chrome/common:constants",
++    "//chrome/common/extensions/api",
++    "//components/prefs",
++    "//extensions/common",
++  ]
++}
+--- /dev/null
++++ b/chrome/browser/extensions/api/echothink_device/echothink_device_api.h
+@@ -0,0 +1,88 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_EXTENSIONS_API_ECHOTHINK_DEVICE_ECHOTHINK_DEVICE_API_H_
++#define CHROME_BROWSER_EXTENSIONS_API_ECHOTHINK_DEVICE_ECHOTHINK_DEVICE_API_H_
++
++#include "extensions/browser/extension_function.h"
++#include "extensions/buildflags/buildflags.h"
++
++static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
++
++namespace extensions {
++
++class EchothinkDeviceGetDeviceStatusFunction : public ExtensionFunction {
++ public:
++  EchothinkDeviceGetDeviceStatusFunction();
++
++  EchothinkDeviceGetDeviceStatusFunction(
++      const EchothinkDeviceGetDeviceStatusFunction&) = delete;
++  EchothinkDeviceGetDeviceStatusFunction& operator=(
++      const EchothinkDeviceGetDeviceStatusFunction&) = delete;
++
++ protected:
++  ~EchothinkDeviceGetDeviceStatusFunction() override;
++
++  ResponseAction Run() override;
++
++ private:
++  DECLARE_EXTENSION_FUNCTION("echothinkDevice.getDeviceStatus",
++                             ECHOTHINKDEVICE_GETDEVICESTATUS)
++};
++
++class EchothinkDeviceRequestEnrollmentChallengeFunction
++    : public ExtensionFunction {
++ public:
++  EchothinkDeviceRequestEnrollmentChallengeFunction();
++
++  EchothinkDeviceRequestEnrollmentChallengeFunction(
++      const EchothinkDeviceRequestEnrollmentChallengeFunction&) = delete;
++  EchothinkDeviceRequestEnrollmentChallengeFunction& operator=(
++      const EchothinkDeviceRequestEnrollmentChallengeFunction&) = delete;
++
++ protected:
++  ~EchothinkDeviceRequestEnrollmentChallengeFunction() override;
++
++  ResponseAction Run() override;
++
++ private:
++  DECLARE_EXTENSION_FUNCTION(
++      "echothinkDevice.requestEnrollmentChallenge",
++      ECHOTHINKDEVICE_REQUESTENROLLMENTCHALLENGE)
++};
++
++class EchothinkDeviceSignProofPayloadFunction : public ExtensionFunction {
++ public:
++  EchothinkDeviceSignProofPayloadFunction();
++
++  EchothinkDeviceSignProofPayloadFunction(
++      const EchothinkDeviceSignProofPayloadFunction&) = delete;
++  EchothinkDeviceSignProofPayloadFunction& operator=(
++      const EchothinkDeviceSignProofPayloadFunction&) = delete;
++
++ protected:
++  ~EchothinkDeviceSignProofPayloadFunction() override;
++
++  ResponseAction Run() override;
++
++ private:
++  DECLARE_EXTENSION_FUNCTION("echothinkDevice.signProofPayload",
++                             ECHOTHINKDEVICE_SIGNPROOFPAYLOAD)
++};
++
++class EchothinkDeviceClearEnrollmentFunction : public ExtensionFunction {
++ public:
++  EchothinkDeviceClearEnrollmentFunction();
++
++  EchothinkDeviceClearEnrollmentFunction(
++      const EchothinkDeviceClearEnrollmentFunction&) = delete;
++  EchothinkDeviceClearEnrollmentFunction& operator=(
++      const EchothinkDeviceClearEnrollmentFunction&) = delete;
++
++ protected:
++  ~EchothinkDeviceClearEnrollmentFunction() override;
++
++  ResponseAction Run() override;
++
++ private:
++  DECLARE_EXTENSION_FUNCTION("echothinkDevice.clearEnrollment",
++                             ECHOTHINKDEVICE_CLEARENROLLMENT)
++};
++
++}  // namespace extensions
++
++#endif  // CHROME_BROWSER_EXTENSIONS_API_ECHOTHINK_DEVICE_ECHOTHINK_DEVICE_API_H_
+--- /dev/null
++++ b/chrome/browser/extensions/api/echothink_device/echothink_device_api.cc
+@@ -0,0 +1,301 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/extensions/api/echothink_device/echothink_device_api.h"
++
++#include <optional>
++#include <string>
++#include <string_view>
++
++#include "base/files/file_path.h"
++#include "base/path_service.h"
++#include "base/values.h"
++#include "build/build_config.h"
++#include "chrome/browser/browser_process.h"
++#include "chrome/browser/echothink/device_identity/device_identity_service.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/common/chrome_paths.h"
++#include "components/prefs/pref_service.h"
++#include "extensions/common/extension.h"
++
++namespace extensions {
++namespace {
++
++constexpr char kBundledWorkspaceExtensionId[] =
++    "lokdibgfmiemhdoogailbfpdggndpolk";
++constexpr char kUnauthorizedExtensionError[] = "unauthorized_extension";
++constexpr char kInvalidPayloadError[] = "invalid_payload";
++constexpr size_t kMaxProofPayloadBytes = 16 * 1024;
++
++using echothink::device_identity::DeviceBridgeError;
++
++struct BridgeContext {
++  Profile* profile = nullptr;
++  PrefService* local_state = nullptr;
++  base::FilePath user_data_dir;
++};
++
++bool IsAuthorizedCaller(const ExtensionFunction* function) {
++  const Extension* extension = function->extension();
++  return extension && extension->id() == kBundledWorkspaceExtensionId;
++}
++
++bool IsPlatformSupported() {
++#if BUILDFLAG(IS_WIN)
++  return true;
++#else
++  return false;
++#endif
++}
++
++std::string_view BridgeErrorToString(DeviceBridgeError error) {
++  switch (error) {
++    case DeviceBridgeError::kNone:
++      return "";
++    case DeviceBridgeError::kMissingDevice:
++      return "missing_device";
++    case DeviceBridgeError::kLockedKey:
++      return "locked_key";
++    case DeviceBridgeError::kUnsupportedPlatform:
++      return "unsupported_platform";
++    case DeviceBridgeError::kReset:
++      return "reset";
++  }
++  return "bridge_error";
++}
++
++base::Value::Dict ErrorResult(std::string_view error) {
++  base::Value::Dict result;
++  result.Set("ok", false);
++  result.Set("error", std::string(error));
++  return result;
++}
++
++base::Value::Dict BridgeErrorResult(DeviceBridgeError error) {
++  return ErrorResult(BridgeErrorToString(error));
++}
++
++std::optional<BridgeContext> GetBridgeContext(ExtensionFunction* function) {
++  if (!g_browser_process || !g_browser_process->local_state()) {
++    return std::nullopt;
++  }
++
++  base::FilePath user_data_dir;
++  if (!base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir) ||
++      user_data_dir.empty()) {
++    return std::nullopt;
++  }
++
++  BridgeContext context;
++  context.profile = Profile::FromBrowserContext(function->browser_context());
++  context.local_state = g_browser_process->local_state();
++  context.user_data_dir = user_data_dir;
++  if (!context.profile || !context.profile->GetPrefs()) {
++    return std::nullopt;
++  }
++  return context;
++}
++
++bool ProfileNeedsReset(PrefService* profile_prefs) {
++  const std::string enrollment_status = profile_prefs->GetString(
++      echothink::device_identity::kProfileEnrollmentStatusPref);
++  return enrollment_status == "reset_required" ||
++         enrollment_status == "revoked";
++}
++
++DeviceBridgeError EnsureEnrollmentMaterial(PrefService* local_state,
++                                           const base::FilePath& user_data_dir) {
++  const echothink::device_identity::EnsureDeviceIdentityResult result =
++      echothink::device_identity::EnsureDeviceIdentity(local_state,
++                                                       user_data_dir);
++  switch (result) {
++    case echothink::device_identity::EnsureDeviceIdentityResult::kReady:
++    case echothink::device_identity::EnsureDeviceIdentityResult::kGenerated:
++      return DeviceBridgeError::kNone;
++    case echothink::device_identity::EnsureDeviceIdentityResult::
++        kUnsupportedPlatform:
++      return DeviceBridgeError::kUnsupportedPlatform;
++    case echothink::device_identity::EnsureDeviceIdentityResult::kStorageError:
++      return DeviceBridgeError::kMissingDevice;
++    case echothink::device_identity::EnsureDeviceIdentityResult::
++        kInvalidProtectedKey:
++      return DeviceBridgeError::kLockedKey;
++  }
++  return DeviceBridgeError::kLockedKey;
++}
++
++base::Value::Dict BuildStatusResult(const BridgeContext& context) {
++  PrefService* local_state = context.local_state;
++  PrefService* profile_prefs = context.profile->GetPrefs();
++
++  base::Value::Dict result;
++  result.Set("ok", true);
++  result.Set("supported", IsPlatformSupported());
++  result.Set("has_protected_key",
++             echothink::device_identity::HasProtectedDeviceKey(
++                 local_state, context.user_data_dir));
++  result.Set("installation_id",
++             local_state->GetString(
++                 echothink::device_identity::kDeviceInstallationIdPref));
++  result.Set("key_id",
++             local_state->GetString(
++                 echothink::device_identity::kDeviceKeyIdPref));
++  result.Set("key_algorithm",
++             local_state->GetString(
++                 echothink::device_identity::kDeviceKeyAlgorithmPref));
++  result.Set("key_storage",
++             local_state->GetString(
++                 echothink::device_identity::kDeviceKeyStoragePref));
++  result.Set("key_created_at",
++             local_state->GetString(
++                 echothink::device_identity::kDeviceKeyCreatedAtPref));
++  result.Set("browser_channel",
++             local_state->GetString(
++                 echothink::device_identity::kDeviceBrowserChannelPref));
++  result.Set("browser_version",
++             local_state->GetString(
++                 echothink::device_identity::kDeviceBrowserVersionPref));
++
++  const base::Value::Dict& public_key_jwk =
++      local_state->GetDict(
++          echothink::device_identity::kDevicePublicKeyJwkPref);
++  if (!public_key_jwk.empty()) {
++    result.Set("public_key_jwk", public_key_jwk.Clone());
++  }
++
++  result.Set("device_id",
++             profile_prefs->GetString(
++                 echothink::device_identity::kProfileDeviceIdPref));
++  result.Set("enrollment_status",
++             profile_prefs->GetString(
++                 echothink::device_identity::kProfileEnrollmentStatusPref));
++  result.Set("enrolled_at",
++             profile_prefs->GetString(
++                 echothink::device_identity::kProfileEnrolledAtPref));
++  result.Set("last_verified_at",
++             profile_prefs->GetString(
++                 echothink::device_identity::kProfileLastVerifiedAtPref));
++  result.Set("revoked_at",
++             profile_prefs->GetString(
++                 echothink::device_identity::kProfileRevokedAtPref));
++  result.Set("enrolled",
++             profile_prefs->GetBoolean(
++                 echothink::device_identity::kDeviceEnrolledPref));
++  result.Set("verified",
++             profile_prefs->GetBoolean(
++                 echothink::device_identity::kDeviceVerifiedPref));
++  result.Set("setup_complete",
++             profile_prefs->GetBoolean(
++                 echothink::device_identity::kSetupCompletePref));
++  result.Set("reset_required", ProfileNeedsReset(profile_prefs));
++  return result;
++}
++
++std::optional<std::string_view> GetPayloadArgument(
++    const base::Value::List& args) {
++  if (args.empty() || !args[0].is_dict()) {
++    return std::nullopt;
++  }
++
++  const std::string* payload = args[0].GetDict().FindString("payload");
++  if (!payload || payload->empty() ||
++      payload->size() > kMaxProofPayloadBytes) {
++    return std::nullopt;
++  }
++  return std::string_view(*payload);
++}
++
++}  // namespace
++
++EchothinkDeviceGetDeviceStatusFunction::
++    EchothinkDeviceGetDeviceStatusFunction() = default;
++
++EchothinkDeviceGetDeviceStatusFunction::
++    ~EchothinkDeviceGetDeviceStatusFunction() = default;
++
++ExtensionFunction::ResponseAction
++EchothinkDeviceGetDeviceStatusFunction::Run() {
++  if (!IsAuthorizedCaller(this)) {
++    return RespondNow(Error(kUnauthorizedExtensionError));
++  }
++
++  std::optional<BridgeContext> context = GetBridgeContext(this);
++  if (!context) {
++    return RespondNow(WithArguments(
++        BridgeErrorResult(DeviceBridgeError::kMissingDevice)));
++  }
++
++  return RespondNow(WithArguments(BuildStatusResult(*context)));
++}
++
++EchothinkDeviceRequestEnrollmentChallengeFunction::
++    EchothinkDeviceRequestEnrollmentChallengeFunction() = default;
++
++EchothinkDeviceRequestEnrollmentChallengeFunction::
++    ~EchothinkDeviceRequestEnrollmentChallengeFunction() = default;
++
++ExtensionFunction::ResponseAction
++EchothinkDeviceRequestEnrollmentChallengeFunction::Run() {
++  if (!IsAuthorizedCaller(this)) {
++    return RespondNow(Error(kUnauthorizedExtensionError));
++  }
++
++  std::optional<BridgeContext> context = GetBridgeContext(this);
++  if (!context) {
++    return RespondNow(WithArguments(
++        BridgeErrorResult(DeviceBridgeError::kMissingDevice)));
++  }
++  if (ProfileNeedsReset(context->profile->GetPrefs())) {
++    return RespondNow(WithArguments(
++        BridgeErrorResult(DeviceBridgeError::kReset)));
++  }
++
++  const DeviceBridgeError ensure_error =
++      EnsureEnrollmentMaterial(context->local_state, context->user_data_dir);
++  if (ensure_error != DeviceBridgeError::kNone) {
++    return RespondNow(WithArguments(BridgeErrorResult(ensure_error)));
++  }
++
++  base::Value::Dict result = BuildStatusResult(*context);
++  result.Set("challenge_type", "local_public_key_registration");
++  result.Set("challenge_version", "echothink-device-enrollment-v1");
++  return RespondNow(WithArguments(std::move(result)));
++}
++
++EchothinkDeviceSignProofPayloadFunction::
++    EchothinkDeviceSignProofPayloadFunction() = default;
++
++EchothinkDeviceSignProofPayloadFunction::
++    ~EchothinkDeviceSignProofPayloadFunction() = default;
++
++ExtensionFunction::ResponseAction
++EchothinkDeviceSignProofPayloadFunction::Run() {
++  if (!IsAuthorizedCaller(this)) {
++    return RespondNow(Error(kUnauthorizedExtensionError));
++  }
++
++  std::optional<std::string_view> payload = GetPayloadArgument(args());
++  if (!payload) {
++    return RespondNow(WithArguments(ErrorResult(kInvalidPayloadError)));
++  }
++
++  std::optional<BridgeContext> context = GetBridgeContext(this);
++  if (!context) {
++    return RespondNow(WithArguments(
++        BridgeErrorResult(DeviceBridgeError::kMissingDevice)));
++  }
++  if (ProfileNeedsReset(context->profile->GetPrefs())) {
++    return RespondNow(WithArguments(
++        BridgeErrorResult(DeviceBridgeError::kReset)));
++  }
++
++  echothink::device_identity::ProofSignature signature;
++  const DeviceBridgeError sign_error =
++      echothink::device_identity::SignProofPayload(
++          context->local_state, context->user_data_dir, *payload, &signature);
++  if (sign_error != DeviceBridgeError::kNone) {
++    return RespondNow(WithArguments(BridgeErrorResult(sign_error)));
++  }
++
++  base::Value::Dict result;
++  result.Set("ok", true);
++  result.Set("key_id", signature.key_id);
++  result.Set("key_algorithm", signature.key_algorithm);
++  result.Set("signature", signature.signature_base64url);
++  result.Set("signature_encoding", "base64url_der_ecdsa_sha256");
++  return RespondNow(WithArguments(std::move(result)));
++}
++
++EchothinkDeviceClearEnrollmentFunction::
++    EchothinkDeviceClearEnrollmentFunction() = default;
++
++EchothinkDeviceClearEnrollmentFunction::
++    ~EchothinkDeviceClearEnrollmentFunction() = default;
++
++ExtensionFunction::ResponseAction
++EchothinkDeviceClearEnrollmentFunction::Run() {
++  if (!IsAuthorizedCaller(this)) {
++    return RespondNow(Error(kUnauthorizedExtensionError));
++  }
++
++  std::optional<BridgeContext> context = GetBridgeContext(this);
++  if (!context) {
++    return RespondNow(WithArguments(
++        BridgeErrorResult(DeviceBridgeError::kMissingDevice)));
++  }
++#if !BUILDFLAG(IS_WIN)
++  return RespondNow(WithArguments(
++      BridgeErrorResult(DeviceBridgeError::kUnsupportedPlatform)));
++#else
++  if (!echothink::device_identity::ResetLocalEnrollmentState(
++          context->local_state, context->profile->GetPrefs(),
++          context->user_data_dir)) {
++    return RespondNow(
++        WithArguments(BridgeErrorResult(DeviceBridgeError::kReset)));
++  }
++
++  base::Value::Dict result = BuildStatusResult(*context);
++  result.Set("reset", true);
++  return RespondNow(WithArguments(std::move(result)));
++#endif
++}
++
++}  // namespace extensions
+--- a/chrome/common/extensions/api/_api_features.json
++++ b/chrome/common/extensions/api/_api_features.json
+@@ -402,6 +402,14 @@
+     "dependencies": ["permission:echoPrivate"],
+     "contexts": ["privileged_extension"]
+   },
++  "echothinkDevice": {
++    "channel": "stable",
++    "component_extensions_auto_granted": false,
++    "contexts": ["privileged_extension"],
++    "allowlist": [
++      "3FD653AFF268642D37729C1A261CBD4BD00AA032"
++    ]
++  },
+   "enterprise.hardwarePlatform": {
+     "dependencies": ["permission:enterprise.hardwarePlatform"],
+     "contexts": ["privileged_extension"]
+--- a/chrome/common/extensions/api/api_sources.gni
++++ b/chrome/common/extensions/api/api_sources.gni
+@@ -22,6 +22,7 @@ schema_sources_ = [
+   "developer_private.webidl",
+   "downloads_internal.webidl",
+   "downloads.webidl",
++  "echothink_device.idl",
+   "enterprise_hardware_platform.webidl",
+   "font_settings.json",
+   "gcm.json",
+--- /dev/null
++++ b/chrome/common/extensions/api/echothink_device.idl
+@@ -0,0 +1,38 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Bundled Echothink Workspace extension bridge for local device identity.
++// This API is allowlisted to the bundled component extension ID only. It never
++// exposes private key bytes, DPAPI blobs, access tokens, or raw key handles.
++namespace echothinkDevice {
++  dictionary SignProofPayloadOptions {
++    // Canonical payload bytes represented as a UTF-8 string. T25/T26 define
++    // the protected request-proof canonicalization and domain allowlist before
++    // this result is attached to service API requests.
++    DOMString payload;
++  };
++
++  callback BridgeResultCallback = void(object result);
++
++  interface Functions {
++    // Returns non-secret local device metadata and enrollment readiness state.
++    // Error result codes include missing_device, locked_key,
++    // unsupported_platform, and reset.
++    static void getDeviceStatus(BridgeResultCallback callback);
++
++    // Returns public-key registration material and non-secret browser metadata
++    // for enrollment. This does not call backend services.
++    static void requestEnrollmentChallenge(BridgeResultCallback callback);
++
++    // Signs a proof payload with the browser-owned device key and returns only
++    // the signature result. Private key material remains native-only.
++    static void signProofPayload(
++        SignProofPayloadOptions options,
++        BridgeResultCallback callback);
++
++    // Explicitly clears local enrollment state and removes the protected local
++    // key so the next enrollment starts from a new identity.
++    static void clearEnrollment(BridgeResultCallback callback);
++  };
++};
+--- a/chrome/browser/resources/echothink_workspace/background.js
++++ b/chrome/browser/resources/echothink_workspace/background.js
+@@ -1,4 +1,11 @@
+ const SIDE_PANEL_PATH = "sidepanel.html";
++const DEVICE_BRIDGE_MESSAGE_TYPE = "echothink.device.bridge";
++const DEVICE_BRIDGE_METHODS = new Set([
++  "getDeviceStatus",
++  "requestEnrollmentChallenge",
++  "signProofPayload",
++  "clearEnrollment",
++]);
+ 
+ function logSidePanelError(action, error) {
+   console.warn(`Unable to ${action}`, error);
+@@ -57,6 +65,61 @@ function scheduleSidePanelInitialization() {
+   });
+ }
+ 
++function isInternalExtensionPageSender(sender) {
++  return (
++    sender?.id === chrome.runtime.id &&
++    typeof sender.url === "string" &&
++    sender.url.startsWith(chrome.runtime.getURL(""))
++  );
++}
++
++function isDeviceBridgeMessage(message) {
++  return (
++    message &&
++    typeof message === "object" &&
++    message.type === DEVICE_BRIDGE_MESSAGE_TYPE &&
++    DEVICE_BRIDGE_METHODS.has(message.method)
++  );
++}
++
++async function invokeDeviceBridge(method, payload) {
++  const nativeBridge = chrome.echothinkDevice;
++  const bridgeMethod = nativeBridge?.[method];
++
++  if (typeof bridgeMethod !== "function") {
++    return {
++      ok: false,
++      error: "unsupported_platform",
++    };
++  }
++
++  return new Promise((resolve) => {
++    const callback = (result) => {
++      const lastError = chrome.runtime.lastError;
++      if (lastError) {
++        resolve({
++          ok: false,
++          error: lastError.message || "bridge_error",
++        });
++        return;
++      }
++
++      resolve(result ?? { ok: false, error: "missing_device" });
++    };
++
++    if (
++      method === "getDeviceStatus" ||
++      method === "requestEnrollmentChallenge" ||
++      method === "clearEnrollment"
++    ) {
++      bridgeMethod(callback);
++      return;
++    }
++
++    bridgeMethod(payload ?? {}, callback);
++  });
++}
++
+ async function openSidePanelFromAction(tab) {
+   await configureDefaultSidePanel();
+   await configureTabSidePanel(tab?.id);
+@@ -84,6 +149,26 @@ chrome.action?.onClicked?.addListener((tab) => {
+   });
+ });
+ 
++chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
++  if (
++    !isDeviceBridgeMessage(message) ||
++    !isInternalExtensionPageSender(sender)
++  ) {
++    return false;
++  }
++
++  invokeDeviceBridge(message.method, message.payload)
++    .then(sendResponse)
++    .catch((error) => {
++      sendResponse({
++        ok: false,
++        error: "bridge_error",
++      });
++      logSidePanelError("invoke device bridge", error);
++    });
++  return true;
++});
++
+ chrome.tabs.onCreated.addListener((tab) => {
+   configureTabSidePanel(tab.id).catch((error) => {
+     logSidePanelError("configure side panel for new tab", error);

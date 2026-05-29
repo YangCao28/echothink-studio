@@ -539,6 +539,14 @@ Acceptance:
 - Extension can request signatures but cannot read the private key.
 - Local reset removes enrollment state.
 
+Alpha implementation detail: T24 implements the narrow bridge as
+`chrome.echothinkDevice` in `patches/echothink/0024-narrow-extension-bridge.patch`.
+The API exposes only `getDeviceStatus`, `requestEnrollmentChallenge`,
+`signProofPayload`, and `clearEnrollment`; it is allowlisted to bundled
+extension ID `lokdibgfmiemhdoogailbfpdggndpolk` and also checks that exact
+caller ID in native code. The extension manifest remains unchanged and does
+not gain broad host permissions or general privileged bridge permissions.
+
 ### 5.10 Request Proof Helper
 
 Add browser-side support for signing request proofs used by protected APIs.

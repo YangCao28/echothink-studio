@@ -381,6 +381,15 @@ DPAPI
 
 TPM-backed key storage should be investigated for later hardening.
 
+The active Alpha extension bridge is
+`patches/echothink/0024-narrow-extension-bridge.patch`; implementation notes
+are in
+`docs/echothink-browser-alpha/t24-implement-narrow-extension-bridge.md`. It
+exposes only `chrome.echothinkDevice.getDeviceStatus`,
+`requestEnrollmentChallenge`, `signProofPayload`, and `clearEnrollment` to the
+bundled workspace extension ID `lokdibgfmiemhdoogailbfpdggndpolk`, with a native
+caller-ID guard and without exposing private key material or DPAPI blobs.
+
 The backend stores:
 
 ```text
@@ -412,6 +421,11 @@ Security comes from the signature and backend verification against the
 registered device public key, not from the header names.
 
 Enterprise mTLS can be added later as an optional hardening mode.
+
+T24 provides the bundled-extension-only signing bridge. T25/T26 still own the
+canonical request-proof payload, Echothink destination allowlist, replay
+protection ownership, and backend proof-validation contract before the
+extension attaches proofs to protected API calls.
 
 ### 5.8 Optional Echo Protocol
 
