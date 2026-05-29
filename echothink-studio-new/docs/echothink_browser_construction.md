@@ -172,6 +172,13 @@ It defines `EchothinkBrowserSetup`, the Canary/Dev/Beta/Stable/Enterprise Stable
 channel IDs and labels, the Alpha-versus-Beta branding tradeoff, and the
 update-channel metadata expected by Windows packaging.
 
+The active Alpha packaging identity patch is
+`patches/echothink/0010-windows-packaging-identity.patch`; the implementation
+note is
+`docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`.
+It applies the Windows Alpha Dev app/install identity while preserving
+Chromium-derived executable internals for Alpha.
+
 The detailed Alpha default policy/preference set is maintained in
 `docs/echothink-browser-alpha/t07-define-default-policy-preference-set.md`.
 It defines the homepage, New Tab, default search and suggest URLs, default
@@ -602,6 +609,8 @@ Deliverables:
 - Release channel labels
 - Channel-specific Windows app identity from
   `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`
+- Active Alpha Dev packaging identity from
+  `patches/echothink/0010-windows-packaging-identity.patch`
 
 Acceptance:
 

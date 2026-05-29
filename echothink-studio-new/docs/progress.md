@@ -1,6 +1,6 @@
 # Echothink Browser Alpha Progress
 
-Last updated: 2026-05-29 (T11 added)
+Last updated: 2026-05-29 (T31 added)
 
 This file is the shared source of truth for browser Alpha task status. Task
 notes should record changed files, validation commands, validation results, and
@@ -27,6 +27,7 @@ known limitations here.
 | T11 | W4 | Add first-run shell | T10 | DONE | Created `patches/echothink/0011-first-run-gate-shell.patch` and appended `echothink/0011-first-run-gate-shell.patch` to the Echothink series tail (after `echothink/0005`). Establishes the M2 first-run **gate shell** by reusing T10's `chrome://echothink-first-run` page (no new page) and making a single narrow first-run-only edit to the `AddFirstRunTabs` block in `chrome/browser/chrome_browser_main.cc` so that on first launch the browser opens **only** the gate shell — suppressing the inherited `chrome://ungoogled-first-run` how-to tab and the normal-profile workspace / New Tab tabs (`master_prefs_->new_tabs`) before setup. The shell's primary CTAs are Sign in (`auth.echothink.ai/login`) and Enroll device (`auth.echothink.ai/device/enroll`), so first launch leads to login/enrollment. No navigation interception, auth-readiness flags, or post-setup restoration — those are owned by T20 (spec) and T21 (`echothink/0006-login-gate.patch`). No policy/pref change; no business logic; no network/TLS/sandbox/renderer/downloads/history/bookmarks/password/cookie/DevTools change; non-first-run startup untouched. Patch number `0011` chosen to avoid the change plan's reserved band (0004/0006–0010). Validated: `git apply --numstat` (12/3), `check_patch_files.py`, `check_gn_flags.py`, `validate_config.py` all exit 0; real `patch -p1` applied cleanly against a reconstructed post-`0003` block. Task note: `docs/echothink-browser-alpha/t11-add-first-run-shell.md`. |
 | T20 | W4 | Define login gate local state and allowlist | T10, T11 | READY | Task note created at `docs/echothink-browser-alpha/t20-define-login-gate-local-state-and-allowlist.md`. Both prerequisites are now `DONE` (T10; and T11, merged in this change — see the T11 row above and task note `t11-add-first-run-shell.md`). The earlier `BLOCKED` state (recorded when T11 was missing) is therefore resolved and T20 may proceed. Still pending: the M4 login-gate spec itself (local auth/device readiness flags, unauthenticated navigation allowlist, blocked-navigation behavior, setup-completion criteria, diagnostics/support exceptions). T21 must not implement `patches/echothink/0006-login-gate.patch` until that spec exists. |
 | T30 | W3 | Define Windows app identity and channels | T05, T06 | DONE | Windows packaging identity spec created at `docs/echothink-browser-alpha/t30-define-windows-app-identity-and-channels.md`. Prerequisites T05 and T06 are DONE. Defines Windows display/Start Menu/uninstall names, `EchothinkBrowserSetup` installer stem and channelized artifact names, channel IDs/labels for Canary, Dev, Beta, Stable, and Enterprise Stable, Alpha-versus-Beta branding requirements, update-channel metadata fields expected by packaging, and Windows smoke-test expectations. No patch or installer implementation was created. |
+| T31 | W4 | Implement Windows packaging identity patch | T30 | DONE | Task note at `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`. Prerequisite T30 is DONE. Created `patches/echothink/0010-windows-packaging-identity.patch` and appended `echothink/0010-windows-packaging-identity.patch` to `patches/series` after the active Echothink tail. Patch sets Alpha Dev Windows app/install identity through Chromium `BRANDING`, Windows install_static constants, installer registry roots, app shortcut folder text, mini-installer icon handoff documentation, and `chrome://version` build labels. `chrome.exe`, `setup.exe`, sandbox IDs, COM GUIDs, network stack, TLS, renderer internals, downloads, history, bookmarks, password manager, cookies, and DevTools remain unchanged. Validated: `git apply --numstat`, `check_patch_files.py`, `check_gn_flags.py`, and `validate_config.py` all pass. Real Windows build/install smoke is deferred to T32/T36 because no local Chromium source checkout or Windows installer environment exists here. |
 
 ## T00 Notes
 
@@ -970,10 +971,10 @@ Validation commands and results:
 
 Known limitations:
 
-- No Chromium source checkout exists locally, so expected native Windows source
-  paths such as `chrome/app/theme/chromium/BRANDING` and
-  `chrome/install_static/install_modes.cc` must be verified during T31 against
-  pinned Chromium `148.0.7778.178`.
+- No Chromium source checkout existed locally during T30. T31 later implemented
+  the active patch against `chrome/app/theme/chromium/BRANDING` and
+  `chrome/install_static/chromium_install_modes.h`; real application against
+  pinned Chromium `148.0.7778.178` remains deferred to a source checkout.
 - No Windows installer technology has been selected and no installer was built
   or run in this environment.
 - Backend availability of `updates.echothink.ai` and
@@ -1111,3 +1112,72 @@ Known limitations:
   gated first launch; noted for T30/T31 packaging).
 - `chrome://echothink-diagnostics` (referenced by the reused shell) remains a
   known dead `chrome://` link until its owning task lands.
+
+## T31 Notes
+
+Changed files:
+
+- `patches/echothink/0010-windows-packaging-identity.patch`
+- `patches/series`
+- `docs/echothink-browser-alpha/t31-implement-windows-packaging-identity-patch.md`
+- `docs/ungoogled_to_echothink_browser_change_plan.md`
+- `docs/echothink_browser_construction.md`
+- `docs/progress.md`
+
+Prerequisite status:
+
+- T31 depends on T30; T30 is marked `DONE`.
+- T30's prerequisite chain to T05 and T06 is already complete. T05 supplies the
+  product-string baseline, and T06 supplies `assets/icons/echothink.ico` and
+  `assets/installer/echothink-setup.ico`.
+
+Implementation decisions:
+
+- Created the active Windows packaging identity patch at
+  `patches/echothink/0010-windows-packaging-identity.patch`.
+- Appended `echothink/0010-windows-packaging-identity.patch` to the active
+  Echothink tail in `patches/series` after
+  `echothink/0011-first-run-gate-shell.patch`.
+- Implemented the Alpha default as T30's `dev` track:
+  `Echothink Browser Dev` for Windows shell/app identity,
+  `Echothink\\Browser Dev\\Application` install path components,
+  `Software\\Echothink\\Browser Dev` installer registry roots,
+  `Echothink Browser Setup` / `EchothinkBrowserSetup` installer metadata, and
+  `Echothink Browser Dev` in `chrome://version` build labels. Machine-readable
+  update/package channel metadata remains T32 because Chromium's non-Google
+  install mode reports an empty runtime channel.
+- Preserved Alpha's low-risk executable/internal-name boundary: no rename of
+  `chrome.exe`, `chrome_proxy.exe`, `setup.exe`, or `mini_installer.exe`; no
+  sandbox ID, COM GUID, app container SID prefix, update-mechanic, network,
+  TLS, renderer, downloads, history, bookmarks, password-manager, cookie, or
+  DevTools changes.
+- Documented mini-installer icon handoff to
+  `assets/installer/echothink-setup.ico` but did not embed binary icon deltas
+  in the unified-diff patch.
+
+Validation commands and results:
+
+| Command | Result |
+|---|---|
+| `rtk ls -l patches/echothink/0010-windows-packaging-identity.patch assets/icons/echothink.ico assets/installer/echothink-setup.ico` | Passed: patch and required icon assets exist. |
+| `rtk rg -n "echothink/0010-windows-packaging-identity.patch" patches/series` | Passed: active series entry present. |
+| `rtk rg -n "Echothink Browser Dev|EchothinkBrowserSetup|Browser Dev|Software\\\\Echothink" patches/echothink/0010-windows-packaging-identity.patch` | Passed: expected identity strings present. |
+| `rtk git apply --numstat patches/echothink/0010-windows-packaging-identity.patch` | Passed: patch parses cleanly; six source files touched. |
+| `rtk python3 devutils/check_patch_files.py` | Passed, exit 0. |
+| `rtk python3 devutils/check_gn_flags.py` | Passed, exit 0. |
+| `rtk python3 devutils/validate_config.py` | Passed, exit 0. |
+
+Build-pipeline application command (deferred; no local Chromium checkout):
+
+- `patch -p1 < patches/echothink/0010-windows-packaging-identity.patch` from the
+  pinned Chromium `148.0.7778.178` source root after inherited patches and
+  earlier active Echothink patches have applied.
+
+Known limitations:
+
+- No local Chromium source checkout exists, so real patch application against
+  the pinned source and a Windows compile were not run.
+- No installer was built or installed here. Start Menu, taskbar, Apps &
+  Features, UAC/file-description, uninstall, and icon smoke tests remain T32/T36.
+- Full side-by-side Canary/Beta/Stable/Enterprise Stable install modes still
+  need final app/update IDs and packaging docs from T32.
